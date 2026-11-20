@@ -6,7 +6,9 @@
 - Archivo fuente: `index.html`
 - SHA anterior: `306d476d7ad01b69ff57184929da6f7441646779`
 - Commit del ciclo: `fb891e2e40e916b89b504a186d25b50a816ec01d`
-- SHA nuevo: `fcc0fee65b4c03cc75ec0cf1c06ac51f1d0306ea`
+- SHA nuevo: `fcc0fee65b4c03cc75ec0cf1c06ac51f1d0306ea` (HTML)
+- Suite QA: `tests/nodo-cero-ciclo1.test.js` (blob actualizado en commit posterior)
+- Commit más reciente de la suite: `4e25dce39f14ba60fc828841c2610f66420adbeb`
 - El histórico previo se conserva mediante commits; no se modificó ni eliminó el almacenamiento local de la usuaria.
 
 ## Hallazgo y corrección
@@ -23,6 +25,7 @@ Se aplicó una corrección mínima:
 - Comprobaciones estáticas sobre el archivo remoto recuperado: **19/19 PASS**.
 - Verificación adicional de referencias DOM: **29 listeners directos; 0 IDs inexistentes**.
 - Parseo del script inline mediante el motor JavaScript V8 disponible en la sesión: **1/1 PASS**.
+- Simulación aislada de las funciones reales de normalización, restauración y guardado: **4/4 PASS** (respaldo válido, JSON malformado, protección contra sobrescritura y rollback ante fallo de integridad).
 - SHA remoto verificado después del commit: **PASS**.
 
 ## Suite reproducible
