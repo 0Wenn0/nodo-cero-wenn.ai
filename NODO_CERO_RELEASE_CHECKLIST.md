@@ -48,3 +48,14 @@
 - [ ] Mantener las exploraciones locales en el dispositivo de cada participante.
 - [ ] No solicitar respaldos JSON en el repositorio público.
 - [ ] Recordar a participantes conservar sus respaldos en un lugar privado.
+
+## Iteración final — PROYECTAR: necesidades relacionadas
+- [ ] Seleccionar un hallazgo con necesidad activa asociada y comprobar que aparece.
+- [ ] Seleccionar un hallazgo sin necesidad asociada y comprobar el estado vacío explicativo.
+- [ ] Comprobar el mensaje cuando todavía no existen necesidades activas.
+- [ ] Cambiar la selección de hallazgos y comprobar que las necesidades se actualizan.
+- [ ] Confirmar que no permanecen seleccionadas necesidades que ya no corresponden.
+- [ ] Registrar oportunidad y verificar trazabilidad.
+- [ ] Recargar y comprobar que las relaciones persisten.
+- [ ] Exportar/importar JSON en entorno de prueba aislado y comprobar las relaciones.
+- [ ] Ejecutar `node tests/nodo-cero-proyectar-needs.test.js`.
