@@ -35,7 +35,7 @@ Se inspeccionó la versión vigente antes de modificarla. La aplicación ya cont
 Estas comprobaciones son inspección de código y estructura. No demuestran que las interacciones funcionen visualmente en todos los navegadores.
 
 ## Pruebas
-La suite nueva contiene 33 verificaciones estáticas/estructurales y se entrega para ejecución local con Node.js:
+La suite nueva contiene 32 verificaciones estáticas/estructurales y se entrega para ejecución local con Node.js:
 `node tests/nodo-cero-ciclo2.test.js`
 
 La ejecución de Node.js del archivo recién creado no se certifica desde esta sesión; el entorno de herramientas de GitHub permite escribir y recuperar archivos, pero no ejecutar comandos del repositorio. Por tanto, los resultados de esa suite quedan **NOT TESTED** hasta ejecutarse desde un clon local.
