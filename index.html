@@ -1474,7 +1474,9 @@
     }
     function countExplorationRecords(exploration=state.exploration) {
       const keys=['visits','findings','bridgesMeanings','possibilities','evidences','interpretations','needs','opportunities','versionRecords','authorship','technologyDimensions'];
-      return keys.reduce((n,k)=>n+(Array.isArray(exploration[k])?exploration[k].length:0),0);
+      const records=keys.reduce((n,k)=>n+(Array.isArray(exploration[k])?exploration[k].length:0),0);
+      const visited=exploration.visitedIds instanceof Set ? exploration.visitedIds.size : Array.isArray(exploration.visitedIds) ? exploration.visitedIds.length : 0;
+      return records+visited;
     }
     function describeExplorationRecords(exploration=state.exploration) {
       const labels=[['findings','hallazgos'],['needs','necesidades'],['bridgesMeanings','conexiones'],['evidences','evidencias'],['interpretations','interpretaciones'],['opportunities','oportunidades'],['possibilities','posibilidades']];
