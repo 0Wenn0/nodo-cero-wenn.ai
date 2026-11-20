@@ -747,8 +747,9 @@
         <label for="i7OpportunityFindings" class="block text-[10px] font-semibold text-stone-700">Hallazgos que sustentan la oportunidad</label>
         <select id="i7OpportunityFindings" multiple size="4" class="w-full rounded-lg border border-stone-200 bg-white p-2 text-xs" aria-describedby="i7OpportunityHelp"></select>
         <label for="i7OpportunityNeeds" class="block text-[10px] font-semibold text-stone-700">Necesidades relacionadas</label>
-        <select id="i7OpportunityNeeds" multiple size="4" class="w-full rounded-lg border border-stone-200 bg-white p-2 text-xs"></select>
+        <select id="i7OpportunityNeeds" multiple size="4" class="w-full rounded-lg border border-stone-200 bg-white p-2 text-xs" aria-describedby="i7OpportunityHelp i7OpportunityNeedsStatus"></select>
         <p id="i7OpportunityHelp" class="text-[9px] text-stone-600">Puedes seleccionar varios elementos con Ctrl (Windows) o Cmd (Mac).</p>
+        <p id="i7OpportunityNeedsStatus" class="text-[10px] text-stone-600" role="status" aria-live="polite"></p>
         <button id="btnSaveI7Opportunity" type="button" class="w-full rounded-xl bg-teal-800 hover:bg-teal-700 text-white p-2.5 text-xs font-semibold">Registrar oportunidad y conservar trazabilidad</button>
         <div id="i7OpportunityStatus" class="text-[10px] text-stone-700" aria-live="polite"></div>
         <div id="i7OpportunityRecords" class="space-y-1.5"></div>
@@ -3220,8 +3221,36 @@
       Array.from(findingSelect.options).forEach(o => { o.selected = previousFindings.has(o.value); });
       const selectedFindingIds = Array.from(findingSelect.selectedOptions).map(o => o.value);
       const eligibleNeeds = activeNeeds.filter(n => selectedFindingIds.includes(n.hallazgoId));
-      needSelect.innerHTML = eligibleNeeds.map(n => `<option value="${escapeHTML(n.id)}">${escapeHTML(n.text.slice(0,180))}</option>`).join('');
-      Array.from(needSelect.options).forEach(o => { o.selected = previousNeeds.has(o.value); });
+      needSelect.innerHTML = '';
+      if (eligibleNeeds.length) {
+        eligibleNeeds.forEach(n => {
+          const option = document.createElement('option');
+          option.value = n.id;
+          option.textContent = String(n.text || '').slice(0,180);
+          option.selected = previousNeeds.has(n.id);
+          needSelect.appendChild(option);
+        });
+      } else {
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        placeholder.textContent = !selectedFindingIds.length
+          ? 'Selecciona primero uno o más hallazgos'
+          : !activeNeeds.length
+            ? 'Todavía no hay necesidades documentadas'
+            : 'No hay necesidades vinculadas con los hallazgos seleccionados';
+        needSelect.appendChild(placeholder);
+      }
+      const needsStatus = document.getElementById('i7OpportunityNeedsStatus');
+      if (needsStatus) {
+        needsStatus.textContent = !selectedFindingIds.length
+          ? 'Selecciona un hallazgo para consultar sus necesidades relacionadas.'
+          : !activeNeeds.length
+            ? 'Aún no hay necesidades activas. Registra una en IDENTIFICAR y vuelve a PROYECTAR.'
+            : !eligibleNeeds.length
+              ? 'Los hallazgos seleccionados no tienen necesidades activas asociadas. Registra una necesidad en IDENTIFICAR o selecciona otro hallazgo.'
+              : `${eligibleNeeds.length} necesidad(es) disponible(s) para los hallazgos seleccionados.`;
+      }
       const records = state.exploration.opportunities.filter(o => o.status !== 'archivado');
       const list = document.getElementById('i7OpportunityRecords');
       if (list) list.innerHTML = records.length ? records.map(o => `<div class="rounded-lg border border-teal-200 bg-white/80 p-2 text-[10px]"><strong>${escapeHTML(o.text)}</strong><div class="text-stone-500 mt-1">${(o.sourceFindingIds||[]).length} hallazgo(s) · ${(o.needIds||[]).length} necesidad(es) vinculadas</div></div>`).join('') : '<p class="text-[10px] text-stone-500">Aún no has registrado una oportunidad.</p>';
