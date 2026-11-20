@@ -112,6 +112,9 @@
   <!-- =======================================================================
        BARRA SUPERIOR: IDENTIDAD, INDICADOR DE RECORRIDO (5 ETAPAS) Y CONTROLES
   ======================================================================== -->
+  <div id="persistenceAlert" role="alert" aria-live="assertive" class="hidden fixed top-[76px] left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,560px)] rounded-2xl border border-rose-300 bg-rose-50 text-rose-950 shadow-xl px-4 py-3">
+    <div class="flex items-start gap-3"><span class="text-lg leading-none" aria-hidden="true">!</span><div class="min-w-0 flex-1"><p class="text-sm font-bold">La exploración no está guardada</p><p id="persistenceAlertMessage" class="text-xs leading-relaxed mt-1">Descarga un respaldo JSON para conservar tus cambios.</p></div><button id="btnDismissPersistenceAlert" type="button" class="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold hover:bg-rose-100" aria-label="Cerrar aviso">Cerrar</button></div>
+  </div>
   <header class="fixed top-0 left-0 right-0 z-20 pointer-events-none px-3 pt-3 sm:px-5 sm:pt-4 flex flex-col gap-2.5">
     <div class="flex flex-wrap items-center justify-between gap-2">
       <!-- Marca NODO CERO -->
@@ -403,7 +406,7 @@
           <h2 class="font-editorial text-2xl font-bold text-stone-800 leading-none mt-0.5">
             Mi Exploración
           </h2>
-          <p class="text-[10px] leading-relaxed text-amber-800 bg-amber-50/80 border border-amber-200/70 rounded-xl px-2.5 py-2 mt-2">
+          <p id="explorationSaveNotice" class="text-[10px] leading-relaxed text-amber-800 bg-amber-50/80 border border-amber-200/70 rounded-xl px-2.5 py-2 mt-2">
             Tu exploración se guarda automáticamente en este navegador. Descarga tu respaldo JSON para conservarla o trasladarla a otro dispositivo.
           </p>
         </div>
@@ -1363,12 +1366,35 @@
     let lastSavedAt = null;
     // Protege un respaldo local ilegible o incompatible para evitar sobrescribirlo al iniciar.
     let localRestoreBlocked = false;
+    let persistenceErrorActive = false;
 
     function setPersistenceStatus(message, tone='normal') {
       const el = document.getElementById('persistenceStatus');
-      if (!el) return;
-      el.textContent = message;
-      el.className = 'text-[10px] px-1 ' + (tone==='error' ? 'text-rose-700' : tone==='success' ? 'text-teal-700' : 'text-stone-600');
+      if (el) {
+        el.textContent = message;
+        el.className = 'text-xs font-semibold px-1 ' + (tone==='error' ? 'text-rose-800' : tone==='success' ? 'text-teal-800' : 'text-stone-700');
+      }
+      const alert = document.getElementById('persistenceAlert');
+      const alertMessage = document.getElementById('persistenceAlertMessage');
+      const notice = document.getElementById('explorationSaveNotice');
+      if (tone === 'error') {
+        persistenceErrorActive = true;
+        if (alertMessage) alertMessage.textContent = message + '. Tus cambios siguen disponibles en esta sesión, pero no están guardados en este navegador. Descarga un respaldo JSON.';
+        if (alert) alert.classList.remove('hidden');
+        if (notice) {
+          notice.textContent = 'El guardado automático está detenido. Tus cambios siguen disponibles en esta sesión, pero no están guardados; descarga un respaldo JSON antes de salir.';
+          notice.className = 'text-xs leading-relaxed text-rose-900 bg-rose-50 border border-rose-300 rounded-xl px-2.5 py-2 mt-2';
+        }
+      } else if (tone === 'success') {
+        persistenceErrorActive = false;
+        if (alert) alert.classList.add('hidden');
+        if (notice) {
+          notice.textContent = 'Tu exploración se guarda automáticamente en este navegador. Descarga tu respaldo JSON para conservarla o trasladarla a otro dispositivo.';
+          notice.className = 'text-[10px] leading-relaxed text-amber-800 bg-amber-50/80 border border-amber-200/70 rounded-xl px-2.5 py-2 mt-2';
+        }
+      } else if (!persistenceErrorActive && notice) {
+        notice.textContent = 'Guardando los cambios de tu exploración…';
+      }
     }
     function buildPersistenceSnapshot() {
       if (typeof syncSheetInputsToState === 'function' && document.getElementById('sheetHmwQuestion')) syncSheetInputsToState();
@@ -1443,7 +1469,16 @@
         const url = URL.createObjectURL(blob); const a=document.createElement('a');
         a.href=url; a.download='nodo-cero-respaldo-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
         setTimeout(()=>URL.revokeObjectURL(url),1000); showToast('Respaldo completo descargado (.json)');
-      } catch(error) { showToast('No se pudo generar el respaldo JSON'); console.error(error); }
+        return true;
+      } catch(error) { showToast('No se pudo generar el respaldo JSON'); console.error(error); return false; }
+    }
+    function countExplorationRecords(exploration=state.exploration) {
+      const keys=['visits','findings','bridgesMeanings','possibilities','evidences','interpretations','needs','opportunities','versionRecords','authorship','technologyDimensions'];
+      return keys.reduce((n,k)=>n+(Array.isArray(exploration[k])?exploration[k].length:0),0);
+    }
+    function describeExplorationRecords(exploration=state.exploration) {
+      const labels=[['findings','hallazgos'],['needs','necesidades'],['bridgesMeanings','conexiones'],['evidences','evidencias'],['interpretations','interpretaciones'],['opportunities','oportunidades'],['possibilities','posibilidades']];
+      return labels.filter(([k])=>Array.isArray(exploration[k])&&exploration[k].length).map(([k,label])=>exploration[k].length+' '+label).join(', ') || 'registros de exploración';
     }
     function importExplorationJSON(file) {
       const reader = new FileReader();
@@ -1451,6 +1486,15 @@
         const previous = state.exploration; const previousStage=state.currentStage;
         try {
           const normalized=normalizeImportedSnapshot(JSON.parse(String(reader.result || '')));
+          // Validar primero sin sustituir de forma permanente la exploración actual.
+          state.exploration=normalized.exploration; state.currentStage=normalized.currentStage;
+          initializeRecordLayer(); validateExplorationIntegrity();
+          state.exploration=previous; state.currentStage=previousStage;
+          if (countExplorationRecords(previous)>0) {
+            const confirmed=window.confirm('Este respaldo reemplazará tu exploración actual ('+describeExplorationRecords(previous)+'). ¿Descargar un respaldo de la exploración actual antes de continuar?\n\nAceptar: descargar respaldo y continuar.\nCancelar: conservar la exploración actual y cancelar la importación.');
+            if (!confirmed) { showToast('Importación cancelada. Tu exploración actual se conserva.'); return; }
+            if (!exportExplorationJSON()) { showToast('Importación cancelada: no se pudo descargar el respaldo previo.'); return; }
+          }
           state.exploration=normalized.exploration; state.currentStage=normalized.currentStage;
           initializeRecordLayer(); validateExplorationIntegrity();
           localRestoreBlocked=false;
@@ -1459,7 +1503,6 @@
           showToast('Exploración recuperada desde el respaldo JSON.');
         } catch(error) {
           state.exploration=previous; state.currentStage=previousStage;
-          // Si había un respaldo local ilegible, conservarlo hasta importar uno válido.
           showToast('Respaldo rechazado: '+(error.message || 'estructura inválida'));
           console.error('NODO CERO: importación rechazada',error);
         }
@@ -1474,11 +1517,12 @@
       if (state.hasUnsavedChanges) { event.preventDefault(); event.returnValue = ''; }
     });
     document.addEventListener('input', (event) => {
-      if (event.target && event.target.matches('input, textarea, select')) markUnsavedChanges();
+      if (event.target && event.target.matches('input:not([type="file"]), textarea, select')) markUnsavedChanges();
     });
     document.addEventListener('change', (event) => {
-      if (event.target && event.target.matches('input, textarea, select')) markUnsavedChanges();
+      if (event.target && event.target.matches('input:not([type="file"]), textarea, select')) markUnsavedChanges();
     });
+    document.getElementById('btnDismissPersistenceAlert').addEventListener('click',()=>document.getElementById('persistenceAlert').classList.add('hidden'));
     document.getElementById('btnExportJSON').addEventListener('click', exportExplorationJSON);
     document.getElementById('btnImportJSON').addEventListener('click',()=>document.getElementById('inputImportJSON').click());
     document.getElementById('inputImportJSON').addEventListener('change',event=>{const file=event.target.files?.[0];if(file)importExplorationJSON(file);event.target.value='';});
