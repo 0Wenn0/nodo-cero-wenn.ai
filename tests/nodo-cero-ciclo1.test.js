@@ -17,7 +17,7 @@ const directListeners = [...html.matchAll(/document\.getElementById\(['"]([^'"]+
 const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].filter(m=>! /\bsrc\s*=/.test(m[1]));
 
 check('Canvas principal único',()=>assert.equal((html.match(/id="worldCanvas"/g)||[]).length,1));
-check('Siete territorios definidos',()=>assert.match(html,/id:\s*'(?:educacion|salud|comunidad|oportunidades|entorno|cultura|tecnologia)'/));
+check('Siete territorios definidos',()=>{const block=html.match(/const TERRITORIES = \[([\s\S]*?)\n    \];/);assert.ok(block,'TERRITORIES');assert.equal((block[1].match(/\bid:\s*'/g)||[]).length,7);});
 check('Cinco etapas presentes',()=>['observar:','identificar:','conectar:','imaginar:','proyectar:'].forEach(x=>assert.ok(html.includes(x),x)));
 check('Bienvenida y controles presentes',()=>['guideModal','btnOpenGuide','btnCloseGuideTop','btnStartExploring'].forEach(x=>assert.ok(html.includes('id="'+x+'"'),x)));
 check('Marca de bienvenida persistida',()=>assert.ok(html.includes("nodo-cero.guide-seen.v1")&&html.includes('markGuideAsSeen();')));
