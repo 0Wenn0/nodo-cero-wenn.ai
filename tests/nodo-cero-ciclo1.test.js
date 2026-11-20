@@ -37,6 +37,14 @@ check('Arranque inicializa mapa y animación',()=>['initWorld();','requestAnimat
 check('Todos los listeners directos apuntan a IDs existentes',()=>assert.deepEqual([...new Set(directListeners.filter(id=>!ids.has(id)))],[]));
 check('Scripts inline tienen sintaxis válida',()=>{assert.ok(inlineScripts.length>0);inlineScripts.forEach(m=>new vm.Script(m[2]));});
 
+check('Aviso persistente de error visible fuera de paneles',()=>['persistenceAlert','persistenceAlertMessage','btnDismissPersistenceAlert'].forEach(x=>assert.ok(html.includes('id="'+x+'"'),x)));
+check('Bitácora cambia su mensaje según el estado',()=>assert.ok(html.includes('El guardado automático está detenido')&&html.includes('Tu exploración se guarda automáticamente en este navegador.')));
+check('Importación exige confirmación y ofrece respaldo previo',()=>assert.ok(html.includes('window.confirm(\'Este respaldo reemplazará tu exploración actual')&&html.includes('if (!exportExplorationJSON())')));
+check('Confirmación y respaldo ocurren antes de aplicar el nuevo respaldo',()=>html.indexOf('window.confirm(\'Este respaldo reemplazará')<html.indexOf('state.exploration=normalized.exploration; state.currentStage=normalized.currentStage;',html.indexOf('function importExplorationJSON'))));
+check('Todos los listeners excluyen inputs de tipo archivo',()=>assert.ok(!html.includes("matches('input, textarea, select')")&&html.includes('input:not([type="file"])')));
+check('El resumen de reemplazo cuenta territorios visitados',()=>assert.ok(html.includes('exploration.visitedIds instanceof Set ? exploration.visitedIds.size')));
+
+
 const failed=checks.filter(x=>x.result==='FAIL');
 console.log(JSON.stringify({file:htmlPath,passed:checks.length-failed.length,total:checks.length,checks},null,2));
 if(failed.length) process.exitCode=1;
