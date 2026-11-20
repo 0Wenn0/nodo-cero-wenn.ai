@@ -404,7 +404,7 @@
             Mi Exploración
           </h2>
           <p class="text-[10px] leading-relaxed text-amber-800 bg-amber-50/80 border border-amber-200/70 rounded-xl px-2.5 py-2 mt-2">
-            Tu exploración vive en esta sesión. Descarga tu ficha antes de cerrar o recargar la página; todavía no hay guardado automático.
+            Tu exploración se guarda automáticamente en este navegador. Descarga tu respaldo JSON para conservarla o trasladarla a otro dispositivo.
           </p>
         </div>
         <button id="btnToggleMyExp" class="p-1.5 rounded-full hover:bg-stone-200/60 text-stone-500 text-xs cursor-pointer" title="Minimizar panel">
@@ -3387,8 +3387,10 @@
       } catch (err) { showToast(err.message || 'No fue posible guardar la observación.'); }
     });
 
-    document.getElementById('btnAddCustomSituation').addEventListener('click', () => {
+    // Control heredado: puede no existir en el HTML actual. Su ausencia no debe bloquear el arranque.
+    document.getElementById('btnAddCustomSituation')?.addEventListener('click', () => {
       const input = document.getElementById('customSituationInput');
+      if (!input) return;
       let val; try { val = validateRecordText(input.value); } catch (err) { showToast(err.message); return; }
       const isl = getIsland(state.selectedIslandId);
       atomicRecordMutation(() => {
