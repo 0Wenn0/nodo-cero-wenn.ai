@@ -1361,6 +1361,8 @@
     const NODO_CERO_BACKUP_SCHEMA = 1;
     let persistenceTimer = null;
     let lastSavedAt = null;
+    // Protege un respaldo local ilegible o incompatible para evitar sobrescribirlo al iniciar.
+    let localRestoreBlocked = false;
 
     function setPersistenceStatus(message, tone='normal') {
       const el = document.getElementById('persistenceStatus');
@@ -1385,6 +1387,10 @@
       return {exploration:ex,currentStage:STAGES_CONFIG[raw.currentStage] ? raw.currentStage : 'observar'};
     }
     function persistExplorationNow() {
+      if (localRestoreBlocked) {
+        setPersistenceStatus('Respaldo local incompatible · importa un JSON válido antes de guardar', 'error');
+        return false;
+      }
       try {
         const snapshot = buildPersistenceSnapshot();
         const serialized = JSON.stringify(snapshot, (key,value)=>value instanceof Set ? Array.from(value) : value);
@@ -1405,6 +1411,8 @@
       persistenceTimer = setTimeout(() => { persistenceTimer=null; persistExplorationNow(); }, 350);
     }
     function restoreLocalExploration() {
+      const previousExploration = state.exploration;
+      const previousStage = state.currentStage;
       try {
         const rawText = localStorage.getItem(NODO_CERO_STORAGE_KEY);
         if (!rawText) return false;
@@ -1413,12 +1421,18 @@
         state.currentStage = normalized.currentStage;
         initializeRecordLayer();
         validateExplorationIntegrity();
+        localRestoreBlocked = false;
         state.hasUnsavedChanges = false;
         setPersistenceStatus('Exploración recuperada', 'success');
         return true;
       } catch (error) {
+        // La recuperación es transaccional: nunca deja estado parcial ni pisa el respaldo original.
+        state.exploration = previousExploration;
+        state.currentStage = previousStage;
+        localRestoreBlocked = true;
+        state.hasUnsavedChanges = false;
         console.error('NODO CERO: no se pudo recuperar el guardado local', error);
-        setPersistenceStatus('Respaldo local incompatible · importa un JSON válido', 'error');
+        setPersistenceStatus('Respaldo local incompatible · importa un JSON válido antes de guardar', 'error');
         return false;
       }
     }
@@ -1439,11 +1453,13 @@
           const normalized=normalizeImportedSnapshot(JSON.parse(String(reader.result || '')));
           state.exploration=normalized.exploration; state.currentStage=normalized.currentStage;
           initializeRecordLayer(); validateExplorationIntegrity();
+          localRestoreBlocked=false;
           updateExplorationUI(); renderI7OpportunityBuilder(); setStage(state.currentStage);
           state.hasUnsavedChanges=true; persistExplorationNow();
           showToast('Exploración recuperada desde el respaldo JSON.');
         } catch(error) {
           state.exploration=previous; state.currentStage=previousStage;
+          // Si había un respaldo local ilegible, conservarlo hasta importar uno válido.
           showToast('Respaldo rechazado: '+(error.message || 'estructura inválida'));
           console.error('NODO CERO: importación rechazada',error);
         }
