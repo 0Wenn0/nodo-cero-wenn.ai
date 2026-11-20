@@ -12,12 +12,12 @@ function check(name, fn) {
   try { fn(); checks.push({name, result:'PASS'}); }
   catch (error) { checks.push({name, result:'FAIL', error:error.message}); }
 }
-const ids = new Set([...html.matchAll(/\\bid=["']([^"']+)["']/g)].map(m=>m[1]));
-const directListeners = [...html.matchAll(/document\\.getElementById\\(['"]([^'"]+)['"]\\)\\.addEventListener/g)].map(m=>m[1]);
-const inlineScripts = [...html.matchAll(/<script\\b([^>]*)>([\\s\\S]*?)<\\/script>/gi)].filter(m=>! /\\bsrc\\s*=/.test(m[1]));
+const ids = new Set([...html.matchAll(/\bid=["']([^"']+)["']/g)].map(m=>m[1]));
+const directListeners = [...html.matchAll(/document\.getElementById\(['"]([^'"]+)['"]\)\.addEventListener/g)].map(m=>m[1]);
+const inlineScripts = [...html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)].filter(m=>! /\bsrc\s*=/.test(m[1]));
 
 check('Canvas principal único',()=>assert.equal((html.match(/id="worldCanvas"/g)||[]).length,1));
-check('Siete territorios definidos',()=>assert.match(html,/id:\\s*'(?:educacion|salud|comunidad|oportunidades|entorno|cultura|tecnologia)'/));
+check('Siete territorios definidos',()=>assert.match(html,/id:\s*'(?:educacion|salud|comunidad|oportunidades|entorno|cultura|tecnologia)'/));
 check('Cinco etapas presentes',()=>['observar:','identificar:','conectar:','imaginar:','proyectar:'].forEach(x=>assert.ok(html.includes(x),x)));
 check('Bienvenida y controles presentes',()=>['guideModal','btnOpenGuide','btnCloseGuideTop','btnStartExploring'].forEach(x=>assert.ok(html.includes('id="'+x+'"'),x)));
 check('Marca de bienvenida persistida',()=>assert.ok(html.includes("nodo-cero.guide-seen.v1")&&html.includes('markGuideAsSeen();')));
