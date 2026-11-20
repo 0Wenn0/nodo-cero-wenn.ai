@@ -38,7 +38,7 @@ Estas comprobaciones son inspección de código y estructura. No demuestran que 
 La suite nueva contiene 32 verificaciones estáticas/estructurales y se entrega para ejecución local con Node.js:
 `node tests/nodo-cero-ciclo2.test.js`
 
-La ejecución de Node.js del archivo recién creado no se certifica desde esta sesión; el entorno de herramientas de GitHub permite escribir y recuperar archivos, pero no ejecutar comandos del repositorio. Por tanto, los resultados de esa suite quedan **NOT TESTED** hasta ejecutarse desde un clon local.
+**Resultado en esta sesión:** 32/32 PASS al ejecutar el contenido de la suite en un harness JavaScript V8 con el HTML recuperado de `main`. La suite de regresión del Ciclo 1 también pasó 26/26 en el mismo harness. Esto valida las aserciones y la estructura del HTML inspeccionado; no equivale a ejecutar el comando Node.js nativo en un clon local. La ejecución nativa queda **NOT TESTED**.
 
 ## Limitaciones
 - No se ejecutó Chrome/Edge ni una prueba E2E.
