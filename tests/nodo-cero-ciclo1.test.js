@@ -40,7 +40,7 @@ check('Scripts inline tienen sintaxis válida',()=>{assert.ok(inlineScripts.leng
 check('Aviso persistente de error visible fuera de paneles',()=>['persistenceAlert','persistenceAlertMessage','btnDismissPersistenceAlert'].forEach(x=>assert.ok(html.includes('id="'+x+'"'),x)));
 check('Bitácora cambia su mensaje según el estado',()=>assert.ok(html.includes('El guardado automático está detenido')&&html.includes('Tu exploración se guarda automáticamente en este navegador.')));
 check('Importación exige confirmación y ofrece respaldo previo',()=>assert.ok(html.includes('window.confirm(\'Este respaldo reemplazará tu exploración actual')&&html.includes('if (!exportExplorationJSON())')));
-check('Confirmación y respaldo ocurren antes de aplicar el nuevo respaldo',()=>html.indexOf('window.confirm(\'Este respaldo reemplazará')<html.indexOf('state.exploration=normalized.exploration; state.currentStage=normalized.currentStage;',html.indexOf('function importExplorationJSON'))));
+check('Confirmación y respaldo ocurren antes de aplicar el nuevo respaldo',()=>{const start=html.indexOf('function importExplorationJSON');const confirmAt=html.indexOf('window.confirm(',start);const applyAt=html.lastIndexOf('state.exploration=normalized.exploration; state.currentStage=normalized.currentStage;');assert.ok(confirmAt>=0&&applyAt>confirmAt);});
 check('Todos los listeners excluyen inputs de tipo archivo',()=>assert.ok(!html.includes("matches('input, textarea, select')")&&html.includes('input:not([type="file"])')));
 check('El resumen de reemplazo cuenta territorios visitados',()=>assert.ok(html.includes('exploration.visitedIds instanceof Set ? exploration.visitedIds.size')));
 
