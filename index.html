@@ -3466,10 +3466,18 @@
       startButton.innerHTML = hasStarted ? 'Volver al mapa &rarr;' : 'Comenzar mi primera misión &rarr;';
       document.getElementById('guideModal').classList.remove('hidden');
     });
+    const NODO_CERO_GUIDE_SEEN_KEY = 'nodo-cero.guide-seen.v1';
+    function markGuideAsSeen() {
+      try { localStorage.setItem(NODO_CERO_GUIDE_SEEN_KEY, '1'); } catch (error) {
+        console.warn('NODO CERO: no se pudo guardar la preferencia de bienvenida', error);
+      }
+    }
     document.getElementById('btnCloseGuideTop').addEventListener('click', () => {
+      markGuideAsSeen();
       document.getElementById('guideModal').classList.add('hidden');
     });
     document.getElementById('btnStartExploring').addEventListener('click', () => {
+      markGuideAsSeen();
       document.getElementById('guideModal').classList.add('hidden');
       if (state.exploration.visitedIds.size > 0) {
         // Restaurar el mapa tal como estaba antes de abrir la guía.
@@ -3614,7 +3622,25 @@
     window.onload = function () {
       resizeCanvas();
       initializeRecordLayer();
-      restoreLocalExploration();
+      const restored = restoreLocalExploration();
+      // Si hay una exploración previa, entrar directamente al mapa. La guía queda
+      // disponible desde el botón de ayuda para consultarla cuando se necesite.
+      const hasExplorationProgress = restored && (
+        state.exploration.visitedIds.size > 0 ||
+        state.exploration.visits.length > 0 ||
+        state.exploration.findings.length > 0 ||
+        state.exploration.evidences.length > 0 ||
+        state.exploration.interpretations.length > 0 ||
+        state.exploration.needs.length > 0 ||
+        state.exploration.opportunities.length > 0
+      );
+      let guideWasSeen = false;
+      try { guideWasSeen = localStorage.getItem(NODO_CERO_GUIDE_SEEN_KEY) === '1'; } catch (error) {}
+      if (hasExplorationProgress || guideWasSeen) {
+        document.getElementById('guideModal').classList.add('hidden');
+      } else {
+        document.getElementById('guideModal').classList.remove('hidden');
+      }
       bindRelatedRecordControls();
       initWorld();
       setStage(state.currentStage || 'observar');
