@@ -1527,10 +1527,10 @@
     document.getElementById('btnImportJSON').addEventListener('click',()=>document.getElementById('inputImportJSON').click());
     document.getElementById('inputImportJSON').addEventListener('change',event=>{const file=event.target.files?.[0];if(file)importExplorationJSON(file);event.target.value='';});
     document.addEventListener('input', (event) => {
-      if (event.target && event.target.matches('input, textarea, select')) markUnsavedChanges();
+      if (event.target && event.target.matches('input:not([type="file"]), textarea, select')) markUnsavedChanges();
     });
     document.addEventListener('change', (event) => {
-      if (event.target && event.target.matches('input, textarea, select')) markUnsavedChanges();
+      if (event.target && event.target.matches('input:not([type="file"]), textarea, select')) markUnsavedChanges();
     });
 
     function setStage(stageKey) {
