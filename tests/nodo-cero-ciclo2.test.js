@@ -38,7 +38,7 @@ check('Ficha incluye rastro y autoría',()=>{const m=section('function buildMark
 check('Exportación PNG usa Canvas y nombre reconocible',()=>{const m=section('function exportConstellationPNG','// =========================================================================');assert.ok(m.includes('canvas.toDataURL(\'image/png\')')&&m.includes('nodo-cero-constelacion.png'));});
 check('Modo Constelación tiene entrada y salida',()=>['btnConstellationMode','btnExitConstellation','constellationBar'].forEach(x=>assert.ok(html.includes('id="'+x+'"'),x)));
 check('Persistencia local usa clave versionada',()=>assert.ok(html.includes("nodo-cero.exploration.v1")&&html.includes('localStorage.setItem')));
-check('Recuperación ocurre antes del guardado inicial',()=>assert.ok(html.indexOf('const restored = restoreLocalExploration();')<html.indexOf('persistExplorationNow();',html.indexOf('window.onload = function')));
+check('Recuperación ocurre antes del guardado inicial',()=>assert.ok(html.indexOf('const restored = restoreLocalExploration();')<html.indexOf('persistExplorationNow();',html.indexOf('window.onload = function'))));
 check('Respaldo JSON serializa Sets',()=>assert.ok(html.includes('value instanceof Set ? Array.from(value) : value')));
 check('Importación normaliza y valida antes de aplicar',()=>{const m=section('function importExplorationJSON','function ');assert.ok(m.includes('normalizeImportedSnapshot')&&m.includes('validateExplorationIntegrity')&&m.includes('window.confirm'));});
 check('Importación ofrece respaldo previo',()=>{const m=section('function importExplorationJSON','function ');assert.ok(m.includes('exportExplorationJSON()')&&m.includes('Importación cancelada'));});
