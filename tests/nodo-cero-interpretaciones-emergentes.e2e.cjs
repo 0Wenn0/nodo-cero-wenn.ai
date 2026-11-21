@@ -37,7 +37,7 @@ const assert = require('node:assert/strict');
   await page.getByText('Restaurar esta versión',{exact:true}).first().click();
   await page.getByText('Versión 1 restaurada',{exact:true}).waitFor({timeout:10000});
   await page.locator('#emergentInterpretationsList article').first().getByText('Archivar',{exact:true}).click();
-  await page.getByRole('button',{name:'Archivar',exact:true}).last().click();
+  await page.locator('#btnConfirmRecordAction').click();
   await page.waitForFunction(()=>document.querySelectorAll('#emergentInterpretationsList article').length===0);
   assert.deepEqual(errors,[]);
   console.log('E2E PASS: crear interpretación con fuentes y puente, diferenciar hipótesis/inferencia, editar, persistir tras recarga, restaurar historial y archivar.');
