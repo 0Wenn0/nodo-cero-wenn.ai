@@ -43,6 +43,18 @@ const PALETTES = {
 const ROLES = Object.keys(PALETTES.observar);
 const TRANSITION_SECONDS = 2.4;
 
+// Intensidad global del movimiento: 0 = quieto, 1 = recomendado, 1.5 = más ventoso.
+const WIND_INTENSITY = 1;
+
+// Viento compartido: ráfagas que viajan de izquierda a derecha y modulan todo a la vez
+// (vegetación, pétalos, luz). Devuelve ~0.25 (calma) … 1 (ráfaga).
+function windAt(x, t) {
+  const wave = Math.sin(x * 0.0021 - t * 0.75);
+  const gust = Math.pow(0.5 + 0.5 * wave, 2);
+  const slow = 0.5 + 0.5 * Math.sin(t * 0.13);
+  return 0.25 + 0.75 * gust * (0.55 + 0.45 * slow);
+}
+
 // ---------------------------------------------------------------------------
 // Utilidades
 // ---------------------------------------------------------------------------
@@ -150,14 +162,15 @@ function createSkyMaterial(u) {
         vec2 q = vec2(uv.x * uAspect, uv.y) + uParallax * 0.15;
         vec3 col = mix(uBottom, uTop, smoothstep(0.0, 1.0, uv.y));
         // Nubes de pigmento muy diluido que derivan lentamente
-        float clouds = fbm(q * 1.6 + vec2(uTime * 0.012, 0.0));
+        float clouds = fbm(q * 1.6 + vec2(uTime * 0.06, uTime * 0.008));
         col = mix(col, uFar, smoothstep(0.45, 0.85, clouds) * 0.35);
         // Haces de luz diagonales desde la esquina superior izquierda
         vec2 r = vec2(uv.x * uAspect - uv.y * 0.75, uv.y);
         float shafts = 0.0;
-        shafts += smoothstep(0.55, 1.0, sin(r.x * 9.0 + 1.3)) * 0.55;
-        shafts += smoothstep(0.65, 1.0, sin(r.x * 15.0 + 4.1)) * 0.35;
-        shafts *= smoothstep(0.15, 1.0, uv.y) * (0.6 + 0.4 * fbm(r * 3.0 + uTime * 0.03));
+        shafts += smoothstep(0.55, 1.0, sin(r.x * 9.0 + 1.3 + uTime * 0.05)) * 0.55;
+        shafts += smoothstep(0.65, 1.0, sin(r.x * 15.0 + 4.1 - uTime * 0.03)) * 0.35;
+        shafts *= smoothstep(0.15, 1.0, uv.y) * (0.6 + 0.4 * fbm(r * 3.0 + uTime * 0.08));
+        shafts *= 0.72 + 0.28 * sin(uTime * 0.35) * sin(uTime * 0.21 + 1.0);
         shafts *= smoothstep(1.6, 0.2, uv.x * uAspect);
         col = mix(col, uLight, shafts * 0.45);
         // Grano de papel
@@ -173,17 +186,20 @@ function createPigmentMaterial(colorUniform) {
     transparent: true,
     depthWrite: false,
     depthTest: false,
-    uniforms: { uColor: colorUniform, uTime: { value: 0 }, uPixelRatio: { value: 1 } },
+    uniforms: { uColor: colorUniform, uTime: { value: 0 }, uPixelRatio: { value: 1 }, uTravel: { value: 0 }, uSpan: { value: 1000 } },
     vertexShader: /* glsl */`
       attribute float aSize;
       attribute float aPhase;
-      uniform float uTime, uPixelRatio;
+      uniform float uTime, uPixelRatio, uTravel, uSpan;
       varying float vAlpha;
+      varying float vAngle;
       void main() {
         vec3 p = position;
-        p.x += sin(uTime * 0.35 + aPhase) * 18.0;
-        p.y += cos(uTime * 0.27 + aPhase * 1.7) * 10.0;
-        vAlpha = 0.25 + 0.35 * (0.5 + 0.5 * sin(uTime * 0.6 + aPhase * 3.0));
+        // Viajan con el viento (los grandes, más cerca, van más rápido) y reaparecen al otro lado
+        p.x = mod(p.x + uSpan + uTravel * (0.55 + aSize / 16.0) + sin(uTime * 0.35 + aPhase) * 18.0, 2.0 * uSpan) - uSpan;
+        p.y += sin(uTime * 0.8 + aPhase) * 14.0 + cos(uTime * 0.27 + aPhase * 1.7) * 10.0;
+        vAlpha = 0.38 + 0.37 * (0.5 + 0.5 * sin(uTime * 0.6 + aPhase * 3.0));
+        vAngle = uTime * (0.6 + fract(aPhase) * 1.4) + aPhase;
         gl_PointSize = aSize * uPixelRatio;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0);
       }
@@ -191,9 +207,12 @@ function createPigmentMaterial(colorUniform) {
     fragmentShader: /* glsl */`
       uniform vec3 uColor;
       varying float vAlpha;
+      varying float vAngle;
       void main() {
         vec2 c = gl_PointCoord - 0.5;
-        float d = length(c * vec2(1.0, 1.6));
+        float cs = cos(vAngle); float sn = sin(vAngle);
+        c = mat2(cs, -sn, sn, cs) * c;
+        float d = length(c * vec2(1.0, 2.2)); // pétalo alargado que gira
         float a = smoothstep(0.5, 0.15, d) * vAlpha;
         gl_FragColor = vec4(uColor, a);
       }
@@ -340,8 +359,11 @@ class GrisBackground {
     this.scene.add(sky);
 
     this.layers = [];
-    this.swayers = [];
+    this.trees = [];
+    this.canopies = [];
+    this.twigs = [];
     this.disposables = [];
+    this.travel = 0;
     this.resize();
     this.active = true;
   }
@@ -351,7 +373,9 @@ class GrisBackground {
     this.layers.forEach(l => this.scene.remove(l.group));
     this.disposables.forEach(d => d.dispose());
     this.layers = [];
-    this.swayers = [];
+    this.trees = [];
+    this.canopies = [];
+    this.twigs = [];
     this.disposables = [];
 
     const { w, h } = this;
@@ -398,41 +422,62 @@ class GrisBackground {
     mesh(backHills, hillGeometry(backPts, bottom - 50),
       createWashMaterial(this.colors.hillBack, { opacity: 0.75, edge: 0, shade: 0.12, seed: 3.1 }), 0, 0, 2);
 
-    // 3. Bosque medio: troncos finos con copas cuadradas y ramitas de candelabro
+    // 3. Bosque medio: troncos finos con copas cuadradas y ramitas de candelabro.
+    // Cada árbol es un grupo que pivota en su base; cada copa pivota donde se une al tronco.
     const forest = addLayer(0.16, 3);
     const groundAt = (pts, x) => {
       const i = Math.max(0, Math.min(pts.length - 1, Math.round((x - pts[0].x) / 16)));
       return pts[i].y;
     };
+    const local = (group, geo, mat, x, y, order) => {
+      const m = new THREE.Mesh(track(geo), track(mat));
+      m.position.set(x, y, 0);
+      m.renderOrder = order;
+      group.add(m);
+      return m;
+    };
     for (let x = -spanX; x < spanX; x += 130 + rand() * 200) {
       const ground = groundAt(backPts, x) - 10;
+      const tree = new THREE.Group();
+      tree.position.set(x, ground, 0);
+      forest.group.add(tree);
+
       const trunkH = h * (0.35 + rand() * 0.55);
       const trunkW = 5 + rand() * 9;
       const trunkMat = createWashMaterial(this.colors.trunk, { opacity: 0.42 + rand() * 0.3, edge: 0.2, shade: 0.1, seed: rand() * 60 });
-      mesh(forest, new THREE.PlaneGeometry(trunkW, trunkH), trunkMat, x, ground + trunkH / 2, 3);
+      local(tree, new THREE.PlaneGeometry(trunkW, trunkH), trunkMat, 0, trunkH / 2, 3);
 
       // Ramitas en L con brotes cuadrados
       const twigs = 1 + Math.floor(rand() * 3);
       for (let t = 0; t < twigs; t++) {
-        const ty = ground + trunkH * (0.25 + rand() * 0.5);
+        const ty = trunkH * (0.25 + rand() * 0.5);
         const dir = rand() < 0.5 ? -1 : 1;
         const len = 14 + rand() * 22;
         const up = 10 + rand() * 24;
         const twigMat = createWashMaterial(this.colors.trunk, { opacity: 0.6, edge: 0, shade: 0, seed: rand() * 60 });
-        mesh(forest, new THREE.PlaneGeometry(len, 2), twigMat, x + dir * len / 2, ty, 3);
-        mesh(forest, new THREE.PlaneGeometry(2, up), twigMat, x + dir * len, ty + up / 2, 3);
-        mesh(forest, new THREE.PlaneGeometry(5, 5), twigMat, x + dir * len, ty + up + 2, 3);
+        const twig = new THREE.Group();
+        twig.position.set(0, ty, 0);
+        tree.add(twig);
+        local(twig, new THREE.PlaneGeometry(len, 2), twigMat, dir * len / 2, 0, 3);
+        local(twig, new THREE.PlaneGeometry(2, up), twigMat, dir * len, up / 2, 3);
+        local(twig, new THREE.PlaneGeometry(5, 5), twigMat, dir * len, up + 2, 3);
+        this.twigs.push({ g: twig, x, dir, phase: rand() * 6.28 });
       }
 
       // Copas cuadradas, a veces dos por tronco
       const canopies = rand() < 0.35 ? 2 : 1;
       for (let c = 0; c < canopies; c++) {
         const size = 40 + rand() * 80;
-        const cy = ground + trunkH * (c === 0 ? 0.92 : 0.55 + rand() * 0.15);
+        const cy = trunkH * (c === 0 ? 0.92 : 0.55 + rand() * 0.15);
+        const ch = size * (0.85 + rand() * 0.3);
         const cmat = createWashMaterial(this.colors.canopy, { opacity: 0.5 + rand() * 0.25, edge: 0.4, shade: 0.16, grain: 0.35, seed: rand() * 80 });
-        const m = mesh(forest, new THREE.PlaneGeometry(size, size * (0.85 + rand() * 0.3)), cmat, x, cy, 4);
-        this.swayers.push({ m, baseX: x, phase: rand() * 6.28, amp: 0.6 + rand() * 1.4 });
+        const pivot = new THREE.Group();
+        pivot.position.set(0, cy - ch * 0.35, 0);
+        tree.add(pivot);
+        local(pivot, new THREE.PlaneGeometry(size, ch), cmat, 0, ch * 0.35, 4);
+        this.canopies.push({ g: pivot, x, phase: rand() * 6.28, flex: 0.7 + rand() * 0.6 });
       }
+      this.trees.push({ g: tree, x, phase: rand() * 6.28, flex: (0.6 + rand() * 0.6) * 260 / trunkH });
     }
 
     // 4. Ruinas: arcos clásicos, algunos con la corona rota
@@ -460,14 +505,14 @@ class GrisBackground {
 
     // 6. Pigmento flotante (pétalos de color)
     const dust = addLayer(0.4, 8);
-    const count = Math.round(Math.min(140, (w * h) / 9000));
+    const count = Math.round(Math.min(220, (w * h) / 6000));
     const pos = new Float32Array(count * 3);
     const size = new Float32Array(count);
     const phase = new Float32Array(count);
     for (let i = 0; i < count; i++) {
       pos[i * 3] = (rand() - 0.5) * spanX * 2;
       pos[i * 3 + 1] = (rand() - 0.5) * h * 1.2;
-      size[i] = 4 + rand() * 9;
+      size[i] = 6 + rand() * 10;
       phase[i] = rand() * 100;
     }
     const pgeo = track(new THREE.BufferGeometry());
@@ -476,6 +521,7 @@ class GrisBackground {
     pgeo.setAttribute('aPhase', new THREE.BufferAttribute(phase, 1));
     this.pigment = track(createPigmentMaterial(this.colors.accent));
     this.pigment.uniforms.uPixelRatio.value = this.renderer.getPixelRatio();
+    this.pigment.uniforms.uSpan.value = spanX;
     const points = new THREE.Points(pgeo, this.pigment);
     points.renderOrder = 8;
     points.frustumCulled = false;
@@ -520,26 +566,50 @@ class GrisBackground {
       ROLES.forEach(role => this.colors[role].value.lerpColors(this.fromColors[role], this.toColors[role], k));
     }
 
-    // Parallax: la cámara del archipiélago desplaza cada capa según su profundidad,
-    // más una deriva lenta para que la escena respire aunque nadie mueva el mapa.
+    // Parallax: la cámara del archipiélago desplaza cada capa según su profundidad.
     const cam = window.NodoCeroScene?.getCamera?.();
-    const drift = this.reducedMotion ? 0 : Math.sin(this.time * 0.05) * 60;
-    const tx = (cam ? cam.x * (cam.zoom || 1) : 0) + drift;
+    const tx = cam ? cam.x * (cam.zoom || 1) : 0;
     const ty = cam ? cam.y * (cam.zoom || 1) : 0;
     const ease = Math.min(1, dt * 3);
     this.parallax.x += (tx - this.parallax.x) * ease;
     this.parallax.y += (ty - this.parallax.y) * ease;
 
+    // Cámara que flota: dos senos de periodos distintos para que nunca se sienta un bucle.
+    const t = this.time;
+    const I = WIND_INTENSITY;
+    const floatX = (Math.sin(t * Math.PI * 2 / 26) * 25 + Math.sin(t * Math.PI * 2 / 41 + 1.7) * 10) * I;
+    const floatY = (Math.sin(t * Math.PI * 2 / 19 + 0.6) * 8) * I;
+
     this.layers.forEach(l => {
-      l.group.position.x = -this.parallax.x * l.depth;
-      l.group.position.y = this.parallax.y * l.depth * 0.4;
+      const floatDepth = l.depth * 2.5; // al frente se mueve más que al fondo → profundidad visible
+      l.group.position.x = -this.parallax.x * l.depth - floatX * floatDepth;
+      l.group.position.y = this.parallax.y * l.depth * 0.4 - floatY * floatDepth;
     });
-    this.skyUniforms.uParallax.value.set(this.parallax.x / this.w, 0);
-    this.skyUniforms.uTime.value = this.time;
-    if (this.pigment) this.pigment.uniforms.uTime.value = this.time;
-    this.swayers.forEach(s => {
-      s.m.position.x = s.baseX + Math.sin(this.time * 0.6 + s.phase) * s.amp;
+    this.skyUniforms.uParallax.value.set((this.parallax.x + floatX * 0.3) / this.w, 0);
+    this.skyUniforms.uTime.value = t;
+
+    // Vegetación mecida por el viento. Se resta la media (~0.45) para que oscile
+    // alrededor de una leve inclinación, no hacia un solo lado.
+    this.trees.forEach(tr => {
+      const wv = windAt(tr.x, t) - 0.45;
+      tr.g.rotation.z = -(wv * 0.025 + Math.sin(t * 0.9 + tr.phase) * 0.003) * tr.flex * I;
     });
+    this.canopies.forEach(c => {
+      const wv = windAt(c.x, t) - 0.45;
+      const flutter = Math.sin(t * 2.4 + c.phase) * 0.12 * (wv + 0.6);
+      c.g.rotation.z = -(wv + flutter) * 0.09 * c.flex * I;
+    });
+    this.twigs.forEach(tw => {
+      const wv = windAt(tw.x, t) - 0.45;
+      tw.g.rotation.z = -(wv * 0.06 + Math.sin(t * 3.1 + tw.phase) * 0.02) * I;
+    });
+
+    if (this.pigment) {
+      const gust = windAt(0, t);
+      this.travel += dt * 22 * (0.4 + gust) * I;
+      this.pigment.uniforms.uTime.value = t;
+      this.pigment.uniforms.uTravel.value = this.travel;
+    }
   }
 
   render() {
