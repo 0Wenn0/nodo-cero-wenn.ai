@@ -58,6 +58,8 @@ const fs = require('node:fs');
   await restored.getByText('Historial',{exact:true}).click();
   await page.getByText('Restaurar esta versión',{exact:true}).first().click();
   await page.getByText('Versión 1 restaurada',{exact:true}).waitFor({timeout:10000});
+  await page.locator('#btnOpenSheet').click();
+  await page.locator('#sheetModal').waitFor({state:'visible'});
   const mdDownloadPromise=page.waitForEvent('download');
   await page.locator('#btnDownloadMarkdown').click();
   const mdDownload=await mdDownloadPromise,mdPath=await mdDownload.path();
