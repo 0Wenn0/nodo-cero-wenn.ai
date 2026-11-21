@@ -3707,48 +3707,51 @@
 
     function buildMarkdownReport() {
       syncSheetInputsToState();
-      const visitedTitles = Array.from(state.exploration.visitedIds)
-        .map(id => getIsland(id)?.title)
-        .filter(Boolean)
-        .join(' · ');
-
-      const communityValue = String(state.exploration.customCommunity || '').trim();
-      const hasActiveFindings = state.exploration.findings.some(f => f.status !== 'archivado' && String(f.text || '').trim());
-      const communityExport = (!communityValue || (!hasActiveFindings && /^Aún no hay hallazgos registrados\./i.test(communityValue)))
-        ? 'Por definir.'
-        : communityValue;
-
+      const ex=state.exploration;
+      const visitedTitles=Array.from(ex.visitedIds).map(id=>getIsland(id)?.title).filter(Boolean).join(' · ');
+      const communityValue=String(ex.customCommunity||'').trim();
+      const hasActiveFindings=ex.findings.some(f=>f.status!=='archivado'&&String(f.text||'').trim());
+      const communityExport=(!communityValue||(!hasActiveFindings&&/^Aún no hay hallazgos registrados\./i.test(communityValue)))?'Por definir.':communityValue;
+      const refLabel=ref=>{
+        if(ref.entityType==='territorio')return TERRITORIES.find(t=>t.id===ref.entityId)?.shortTitle||ref.entityId;
+        const collection=COLLECTIVE_PARTICIPANT_COLLECTIONS[ref.entityType];
+        const record=collection?(ex[collection]||[]).find(item=>item.id===ref.entityId):null;
+        if(!record)return `${ref.entityType} · referencia histórica`;
+        const content=record.text||record.descripcion||record.meaning||record.title||record.id;
+        return `${collectiveTypeLabels[ref.entityType]||ref.entityType} · ${String(content).slice(0,150)}${record.status==='archivado'?' [Archivada]':''}`;
+      };
+      const activeRelations=(ex.collectiveRelations||[]).filter(r=>r.status!=='archivado');
+      const activeEmergent=(ex.emergentInterpretations||[]).filter(r=>r.status!=='archivado');
+      const relationSections=activeRelations.map((r,i)=>[
+        `### Relación colectiva ${i+1} · ${collectiveRelationLabels[r.relationType]||r.relationType}`,
+        escapeMarkdownHTML(r.meaning),'**Participantes:**',
+        ...(r.participantRefs||[]).map(ref=>`- ${escapeMarkdownHTML(refLabel(ref))}`)
+      ].join('\\n'));
+      const emergentSections=activeEmergent.map((r,i)=>{
+        const direct=(r.sourceParticipantRefs||[]).map(ref=>`- ${escapeMarkdownHTML(refLabel(ref))}`);
+        const relations=(r.sourceRelationIds||[]).map(id=>{const rel=(ex.collectiveRelations||[]).find(x=>x.id===id);return `- Relación colectiva: ${escapeMarkdownHTML(rel?.meaning||'referencia histórica')}`;});
+        return [`### Interpretación emergente ${i+1} · ${r.epistemicStatus==='hipotesis'?'Hipótesis por contrastar':'Inferencia'}`,escapeMarkdownHTML(r.text),'**Fuentes directas:**',...(direct.length?direct:['- Sin fuentes directas']),'**Relaciones colectivas de origen:**',...(relations.length?relations:['- Sin relaciones colectivas de origen']),`**ID:** \`${r.id}\``].join('\\n');
+      });
+      const lineage=activeEmergent.filter(r=>(r.sourceParticipantRefs||[]).some(ref=>ref.entityType==='interpretacion_emergente'));
+      const lineageSection=lineage.length?['## Cadena de interpretaciones',...lineage.map(r=>`- ${r.id} utiliza como fuente, entre otras, ${(r.sourceParticipantRefs||[]).filter(ref=>ref.entityType==='interpretacion_emergente').map(ref=>ref.entityId).join(', ')}.`)]:[];
+      const opportunity=ex.opportunities.find(o=>o.status!=='archivado'&&o.id===ex.selectedOpportunityId)||ex.opportunities.filter(o=>o.status!=='archivado').slice(-1)[0];
+      const opportunityTrace=opportunity?[
+        'Hallazgos de origen:',...(opportunity.sourceFindingIds||[]).map(id=>ex.findings.find(f=>f.id===id)).filter(Boolean).map(f=>`- ${escapeMarkdownHTML('['+(f.territoryTitle||'Territorio')+'] '+f.text)}`),
+        'Necesidades relacionadas:',...(opportunity.needIds||[]).map(id=>ex.needs.find(n=>n.id===id)).filter(Boolean).map(n=>`- ${escapeMarkdownHTML(n.text)}`)
+      ]:['Aún no hay una oportunidad seleccionada.'];
       return [
-        '# NODO CERO — Ficha de Exploración del Proyecto',
-        '',
-        '## Pregunta de Oportunidad',
-        escapeMarkdownHTML(state.exploration.hmwQuestion.trim() || 'Por definir.'),
-        '',
-        '### Trazabilidad de la oportunidad',
-        ...[state.exploration.opportunities.find(o=>o.status!=='archivado' && o.id===state.exploration.selectedOpportunityId) || state.exploration.opportunities.filter(o=>o.status!=='archivado').slice(-1)[0]].filter(Boolean).map(o => {
-          const findingLabels = (o.sourceFindingIds || []).map(id => state.exploration.findings.find(f => f.id === id)).filter(Boolean).map(f => `[${f.territoryTitle || 'Territorio'}] ${f.text}`);
-          const needLabels = (o.needIds || []).map(id => state.exploration.needs.find(n => n.id === id)).filter(Boolean).map(n => n.text);
-          return ['Hallazgos de origen:', ...findingLabels.map(x => `- ${escapeMarkdownHTML(x)}`), 'Necesidades relacionadas:', ...needLabels.map(x => `- ${escapeMarkdownHTML(x)}`)].join('\n');
-        }),
-        '',
-        '## 1. Problema o necesidad identificada',
-        escapeMarkdownHTML(state.exploration.customProblem.trim() || 'Por definir.'),
-        '',
-        '## 2. Persona o comunidad involucrada',
-        escapeMarkdownHTML(communityExport || 'Por identificar.'),
-        '',
-        '## 3. Cambio deseado y posibilidades imaginadas',
-        escapeMarkdownHTML(state.exploration.customChange.trim() || 'Por definir.'),
-        '',
-        '## 4. Lo que todavía necesitamos investigar',
-        escapeMarkdownHTML(state.exploration.customResearch.trim() || 'Por definir.'),
-        '',
-        '## Autoría de la exploración',
-        escapeMarkdownHTML(document.getElementById('sheetAuthorship')?.value || 'Sin autoría asignada.'),
-        '',
-        '---',
-        `**Rastro en Constelación:** ${visitedTitles} (${state.exploration.bridgesMeanings.filter(b=>b.status!=='archivado').length} ${state.exploration.bridgesMeanings.filter(b=>b.status!=='archivado').length === 1 ? 'conexión registrada' : 'conexiones registradas'})`
-      ].join('\n');
+        '# NODO CERO — Ficha de Exploración del Proyecto','','## Pregunta de Oportunidad',
+        escapeMarkdownHTML(ex.hmwQuestion.trim()||'Por definir.'),'','### Trazabilidad de la oportunidad',...opportunityTrace,'',
+        '## 1. Problema o necesidad identificada',escapeMarkdownHTML(ex.customProblem.trim()||'Por definir.'),'',
+        '## 2. Persona o comunidad involucrada',escapeMarkdownHTML(communityExport||'Por identificar.'),'',
+        '## 3. Cambio deseado y posibilidades imaginadas',escapeMarkdownHTML(ex.customChange.trim()||'Por definir.'),'',
+        '## 4. Lo que todavía necesitamos investigar',escapeMarkdownHTML(ex.customResearch.trim()||'Por definir.'),'',
+        '## 5. Relaciones colectivas',...(relationSections.length?relationSections:['Aún no hay relaciones colectivas activas.']),'',
+        '## 6. Interpretaciones emergentes',...(emergentSections.length?emergentSections:['Aún no hay interpretaciones emergentes activas.']),'',
+        ...lineageSection,'','## Autoría de la exploración',
+        escapeMarkdownHTML(document.getElementById('sheetAuthorship')?.value||'Sin autoría asignada.'),'','---',
+        `**Rastro en Constelación:** ${visitedTitles} (${ex.bridgesMeanings.filter(b=>b.status!=='archivado').length} conexiones binarias; ${activeRelations.length} relaciones colectivas; ${activeEmergent.length} interpretaciones emergentes)`
+      ].join('\\n');
     }
 
     // Compone el fondo Three.js debajo del archipiélago para que el PNG no quede transparente
