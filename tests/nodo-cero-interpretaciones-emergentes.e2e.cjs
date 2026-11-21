@@ -39,7 +39,9 @@ const assert = require('node:assert/strict');
   await page.locator('#emergentInterpretationText').fill('Una segunda lectura amplía la inferencia anterior al incorporar otra perspectiva territorial.');
   await page.locator('#emergentEpistemicStatus').selectOption('inferencia');
   await page.locator('#btnCreateEmergentInterpretation').click();
-  await assert.equal(await page.locator('#emergentInterpretationsList article').count(),2);
+  const secondStatus=await page.locator('#emergentInterpretationStatus').innerText();
+  const secondCount=await page.locator('#emergentInterpretationsList article').count();
+  assert.equal(secondCount,2,'No se creó la segunda interpretación. Estado: '+secondStatus);
   // Intentar que la primera dependa de la segunda crearía un ciclo y debe rechazarse.
   const firstCard=page.locator('#emergentInterpretationsList article').first();
   await firstCard.getByText('Editar lectura',{exact:true}).click();
