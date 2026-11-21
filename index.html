@@ -522,6 +522,43 @@
           <input id="semanticConnectionText" maxlength="1000" class="w-full rounded-lg border border-stone-200 bg-white p-2 text-xs" placeholder="¿Qué relación encuentras y qué te hace pensar que están conectados?" />
           <button id="btnCreateSemanticConnection" type="button" class="w-full rounded-lg bg-white border border-teal-300 p-2 text-[10px] font-semibold">Crear conexión</button>
         </div>
+        <section id="collectiveRelationBuilder" class="border-t border-amber-200 pt-3 space-y-2.5" aria-labelledby="collectiveRelationHeading">
+          <div class="flex items-start justify-between gap-2">
+            <div><h4 id="collectiveRelationHeading" class="text-[11px] font-bold text-amber-900">Crear puente colectivo</h4>
+            <p class="text-[10px] leading-relaxed text-stone-600 mt-0.5">Reúne tres o más elementos para explorar qué comparten. Puedes combinar hallazgos, evidencias, necesidades, posibilidades y oportunidades de distintos territorios.</p></div>
+            <span class="shrink-0 rounded-full bg-amber-100 text-amber-900 px-2 py-1 text-[9px] font-semibold">A + B + C</span>
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            <label class="text-[10px] text-stone-600">Tipo de elemento
+              <select id="collectiveTypeFilter" class="mt-1 w-full rounded-lg border border-stone-200 bg-white p-2 text-xs">
+                <option value="todos">Todos los tipos</option><option value="hallazgo">Hallazgos</option><option value="evidencia">Evidencias</option><option value="interpretacion">Interpretaciones</option><option value="necesidad">Necesidades</option><option value="posibilidad">Posibilidades</option><option value="oportunidad">Oportunidades</option><option value="territorio">Territorios</option>
+              </select>
+            </label>
+            <label class="text-[10px] text-stone-600">Territorio
+              <select id="collectiveTerritoryFilter" class="mt-1 w-full rounded-lg border border-stone-200 bg-white p-2 text-xs"><option value="todos">Todos</option></select>
+            </label>
+          </div>
+          <input id="collectiveSearch" type="search" class="w-full rounded-lg border border-stone-200 bg-white p-2 text-xs" placeholder="Buscar por palabra o contenido…" aria-label="Buscar elementos para relacionar" />
+          <div id="collectiveCandidates" class="max-h-56 overflow-y-auto custom-scroll rounded-xl border border-stone-200 bg-white/70 p-2 space-y-1" role="group" aria-label="Elementos disponibles para relación colectiva">
+            <p class="text-[10px] text-stone-500">Cargando elementos disponibles…</p>
+          </div>
+          <div class="rounded-xl bg-amber-50/80 border border-amber-200 p-2 space-y-1.5">
+            <div class="flex items-center justify-between"><strong class="text-[10px] text-amber-900">Participantes seleccionados</strong><span id="collectiveSelectionCount" class="text-[10px] text-amber-800">0 seleccionados</span></div>
+            <div id="collectiveSelectionSummary" class="text-[10px] text-stone-600">Selecciona al menos tres elementos.</div>
+          </div>
+          <label class="block text-[10px] font-semibold text-stone-700" for="collectiveRelationType">¿Qué tipo de relación observas?
+            <select id="collectiveRelationType" class="mt-1 w-full rounded-lg border border-stone-200 bg-white p-2 text-xs">
+              <option value="patron">Patrón</option><option value="tension">Tensión</option><option value="causal_hipotetica">Relación causal hipotética</option><option value="complementaria">Complementariedad</option><option value="contradiccion">Contradicción</option><option value="analogia">Analogía</option><option value="otra">Otra relación</option>
+            </select>
+          </label>
+          <p id="collectiveRelationGuidance" class="text-[9px] text-stone-500">Describe el fenómeno compartido que reconoces en los elementos seleccionados.</p>
+          <label class="block text-[10px] font-semibold text-stone-700" for="collectiveRelationMeaning">Explica qué conecta estos elementos y por qué importa
+            <textarea id="collectiveRelationMeaning" rows="3" maxlength="1000" class="mt-1 w-full rounded-lg border border-stone-200 bg-white p-2 text-xs" placeholder="Al observar estos elementos en conjunto, encuentro que…"></textarea>
+          </label>
+          <button id="btnCreateCollectiveRelation" type="button" class="w-full rounded-lg bg-amber-800 hover:bg-amber-900 text-white p-2.5 text-[10px] font-semibold">Crear relación colectiva</button>
+          <div id="collectiveRelationStatus" role="status" aria-live="polite" class="text-[10px] text-stone-600"></div>
+          <div class="border-t border-amber-200 pt-2 space-y-2"><h5 class="text-[10px] font-bold text-stone-700">Puentes colectivos de esta exploración</h5><div id="collectiveRelationsList" class="space-y-2"><p class="text-[10px] text-stone-500">Todavía no hay puentes colectivos.</p></div></div>
+        </section>
         <div class="border-t border-teal-200 pt-2 space-y-2">
           <h4 class="text-[10px] font-semibold text-teal-800">Pregunta de oportunidad trazable</h4>
           <input id="opportunityQuestionInput" maxlength="1000" class="w-full rounded-lg border border-stone-200 bg-white p-2 text-xs" placeholder="¿Cómo podríamos...?" />
@@ -2519,8 +2556,8 @@
     const recordActionPanelHome = document.getElementById('recordActionPanel').parentElement || document.body;
     const recordActionPanelHomeNext = document.getElementById('recordActionPanel').nextElementSibling;
     function getCollectionForRecordType(type) {
-      const map = {observacion:'findings', interpretacion:'findings', hipotesis:'findings', necesidad:'findings', pregunta:'findings', hallazgo:'findings', conexion:'bridgesMeanings', posibilidad:'possibilities',
-        evidencia:'evidences', interpretacion:'interpretations', necesidad:'needs', oportunidad:'opportunities'};
+      const map = {observacion:'findings', hipotesis:'findings', pregunta:'findings', hallazgo:'findings', conexion:'bridgesMeanings', posibilidad:'possibilities',
+        evidencia:'evidences', interpretacion:'interpretations', necesidad:'needs', oportunidad:'opportunities', relacion_colectiva:'collectiveRelations'};
       return map[type] ? state.exploration[map[type]] : null;
     }
     function recordEditableValue(record) {
@@ -2582,7 +2619,7 @@
       if(!record) { relatedStatus('No se encontró el registro para editar.'); return; }
       try {
         const next=validateRecordText(document.getElementById('recordActionEditor').value);
-        if(record.recordType==='conexion'){
+        if(record.recordType==='conexion' || record.recordType==='relacion_colectiva'){
           addVersion(record,next,`Edición de ${label.toLowerCase()}`);
           record.meaning=next; record.text=next;
         } else addVersion(record,next,`Edición de ${label.toLowerCase()}`);
@@ -3121,6 +3158,89 @@
       byId('btnConfirmRecordAction').addEventListener('click',confirmActiveRecordArchive);
     }
 
+    // B · Constructor y consulta de relaciones colectivas.
+    let collectiveSelectedRefs = new Set();
+    const collectiveTypeLabels = {hallazgo:'Hallazgo',evidencia:'Evidencia',interpretacion:'Interpretación',necesidad:'Necesidad',posibilidad:'Posibilidad',oportunidad:'Oportunidad',territorio:'Territorio'};
+    const collectiveRelationLabels = {patron:'Patrón',tension:'Tensión',causal_hipotetica:'Relación causal hipotética',complementaria:'Complementariedad',contradiccion:'Contradicción',analogia:'Analogía',otra:'Otra relación'};
+    function collectiveParticipantCatalog() {
+      const ex=state.exploration, rows=[];
+      const add=(entityType,records,territoryOf,contentOf)=>records.filter(r=>r.status!=='archivado').forEach(r=>{
+        const territoryId=territoryOf(r);
+        const territory=TERRITORIES.find(t=>t.id===territoryId);
+        rows.push({entityType,entityId:r.id,territoryId:territoryId||'',territoryTitle:territory?.shortTitle||r.territoryTitle||'Sin territorio',content:String(contentOf(r)||''),record:r});
+      });
+      add('hallazgo',ex.findings,r=>r.territoryId,r=>r.text);
+      add('evidencia',ex.evidences,r=>ex.findings.find(f=>f.id===r.hallazgoId)?.territoryId,r=>r.descripcion);
+      add('interpretacion',ex.interpretations,r=>ex.findings.find(f=>f.id===r.hallazgoId)?.territoryId,r=>r.text);
+      add('necesidad',ex.needs,r=>ex.findings.find(f=>f.id===r.hallazgoId)?.territoryId,r=>r.text);
+      add('posibilidad',ex.possibilities,r=>r.territoryId || r.territoryIds?.[0],r=>r.text);
+      add('oportunidad',ex.opportunities,r=>ex.findings.find(f=>f.id===(r.sourceFindingIds||[])[0])?.territoryId,r=>r.text);
+      TERRITORIES.forEach(t=>rows.push({entityType:'territorio',entityId:t.id,territoryId:t.id,territoryTitle:t.shortTitle,content:t.shortTitle,record:t}));
+      return rows;
+    }
+    function collectiveRefKey(ref){return `${ref.entityType}:${ref.entityId}`;}
+    function renderCollectiveBuilder() {
+      const list=document.getElementById('collectiveCandidates'); if(!list)return;
+      const type=document.getElementById('collectiveTypeFilter')?.value||'todos';
+      const territory=document.getElementById('collectiveTerritoryFilter')?.value||'todos';
+      const query=(document.getElementById('collectiveSearch')?.value||'').trim().toLocaleLowerCase('es');
+      const catalog=collectiveParticipantCatalog();
+      const territoryFilter=document.getElementById('collectiveTerritoryFilter');
+      if(territoryFilter && territoryFilter.options.length<=1){
+        TERRITORIES.forEach(t=>{const o=document.createElement('option');o.value=t.id;o.textContent=t.shortTitle;territoryFilter.appendChild(o);});
+      }
+      const filtered=catalog.filter(item=>(type==='todos'||item.entityType===type)&&(territory==='todos'||item.territoryId===territory)&&(!query||`${item.content} ${item.territoryTitle} ${collectiveTypeLabels[item.entityType]}`.toLocaleLowerCase('es').includes(query)));
+      list.innerHTML='';
+      if(!filtered.length){const p=document.createElement('p');p.className='text-[10px] text-stone-500 p-2';p.textContent=catalog.length?'No hay elementos con esos filtros.':'Primero registra hallazgos, necesidades o posibilidades para poder relacionarlos.';list.appendChild(p);}
+      filtered.forEach(item=>{
+        const key=collectiveRefKey(item), label=document.createElement('label');
+        label.className='flex items-start gap-2 rounded-lg p-1.5 hover:bg-amber-50 cursor-pointer';
+        const check=document.createElement('input');check.type='checkbox';check.className='mt-0.5 accent-amber-800';check.checked=collectiveSelectedRefs.has(key);check.value=key;
+        check.addEventListener('change',()=>{if(check.checked)collectiveSelectedRefs.add(key);else collectiveSelectedRefs.delete(key);renderCollectiveSelectionSummary();});
+        const body=document.createElement('span');body.className='min-w-0 flex-1';
+        const meta=document.createElement('span');meta.className='block text-[9px] uppercase tracking-wide text-stone-500';meta.textContent=`${collectiveTypeLabels[item.entityType]} · ${item.territoryTitle}`;
+        const content=document.createElement('span');content.className='block text-[10px] leading-snug text-stone-700';content.textContent=item.content.slice(0,190);
+        body.append(meta,content);label.append(check,body);list.appendChild(label);
+      });
+      renderCollectiveSelectionSummary();
+    }
+    function renderCollectiveSelectionSummary(){
+      const el=document.getElementById('collectiveSelectionSummary'),count=document.getElementById('collectiveSelectionCount');
+      const catalog=collectiveParticipantCatalog(),selected=catalog.filter(item=>collectiveSelectedRefs.has(collectiveRefKey(item)));
+      if(count)count.textContent=`${selected.length} seleccionados`;
+      if(el)el.textContent=selected.length?selected.map(x=>`${collectiveTypeLabels[x.entityType]} · ${x.content.slice(0,58)}`).join('  +  '):'Selecciona al menos tres elementos.';
+    }
+    function renderCollectiveRelationsUI(){
+      renderCollectiveBuilder();
+      const list=document.getElementById('collectiveRelationsList');if(!list)return;
+      const records=state.exploration.collectiveRelations.filter(r=>r.status!=='archivado');
+      list.innerHTML='';
+      if(!records.length){list.textContent='Todavía no hay puentes colectivos.';return;}
+      records.forEach(record=>{
+        const card=document.createElement('article');card.className='rounded-xl border border-amber-200 bg-white/80 p-2.5 space-y-1.5';
+        const title=document.createElement('div');title.className='text-[10px] font-bold text-amber-900';title.textContent=collectiveRelationLabels[record.relationType]||'Relación colectiva';
+        const meaning=document.createElement('p');meaning.className='text-[10px] text-stone-700 leading-relaxed';meaning.textContent=record.meaning;
+        const refs=document.createElement('div');refs.className='text-[9px] text-stone-500';
+        refs.textContent=(record.participantRefs||[]).map(ref=>{const item=collectiveParticipantCatalog().find(x=>x.entityType===ref.entityType&&x.entityId===ref.entityId);return item?`${collectiveTypeLabels[ref.entityType]} · ${item.content.slice(0,52)}`:`${ref.entityType} · referencia histórica`;}).join('  +  ');
+        const actions=document.createElement('div');actions.className='flex flex-wrap gap-2';
+        [['Editar explicación','edit'],['Historial','history'],['Archivar','archive']].forEach(([label,mode])=>{const btn=document.createElement('button');btn.type='button';btn.className='text-[9px] font-semibold underline text-stone-600';btn.textContent=label;btn.addEventListener('click',()=>openRecordAction(record,'relación colectiva',mode,card));actions.appendChild(btn);});
+        card.append(title,meaning,refs,actions);list.appendChild(card);
+      });
+    }
+    function createCollectiveRelationFromUI(){
+      const selected=collectiveParticipantCatalog().filter(item=>collectiveSelectedRefs.has(collectiveRefKey(item)));
+      const status=document.getElementById('collectiveRelationStatus');
+      try{
+        if(selected.length<3)throw new Error('Selecciona al menos tres elementos para crear un puente colectivo.');
+        const relationType=document.getElementById('collectiveRelationType').value;
+        const meaning=validateRecordText(document.getElementById('collectiveRelationMeaning').value,1000);
+        const record=createCollectiveRelation({participantRefs:selected.map(x=>({entityType:x.entityType,entityId:x.entityId})),relationType,meaning});
+        collectiveSelectedRefs.clear();document.getElementById('collectiveRelationMeaning').value='';
+        if(status)status.textContent='Puente colectivo guardado con sus participantes y referencias.';
+        updateExplorationUI();showToast('Relación colectiva registrada');
+      }catch(err){if(status)status.textContent=err.message;showToast(err.message);}
+    }
+
     function updateExplorationUI() {
       const visitedCount = state.exploration.visitedIds.size;
       const findingsCount = state.exploration.findings.filter(f => f.status !== 'archivado').length;
@@ -3129,6 +3249,7 @@
       document.getElementById('statTerritories').textContent = `${visitedCount}/7`;
       document.getElementById('statFindings').textContent = `${findingsCount}`;
       document.getElementById('statBridges').textContent = `${bridgesCount}`;
+      renderCollectiveRelationsUI();
 
       // Lista consultable de hallazgos: búsqueda, filtro y detalle diferenciado.
       const fList = document.getElementById('myFindingsList');
@@ -3583,6 +3704,15 @@
     });
 
     // I3 · Consulta y recuperación de registros en Mi Exploración.
+    document.getElementById('collectiveSearch')?.addEventListener('input',renderCollectiveBuilder);
+    document.getElementById('collectiveTypeFilter')?.addEventListener('change',renderCollectiveBuilder);
+    document.getElementById('collectiveTerritoryFilter')?.addEventListener('change',renderCollectiveBuilder);
+    document.getElementById('collectiveRelationType')?.addEventListener('change',()=>{
+      const guidance=document.getElementById('collectiveRelationGuidance');
+      const messages={patron:'Describe la recurrencia o semejanza que aparece entre los elementos.',tension:'Explica qué necesidades, intereses o condiciones entran en fricción.',causal_hipotetica:'Formula una posible influencia. Recuerda: es una hipótesis que requiere investigación, no una causalidad demostrada.',complementaria:'Cuenta cómo se enriquecen o completan mutuamente.',contradiccion:'Señala qué perspectivas o hallazgos parecen incompatibles.',analogia:'Explica qué estructura o lógica comparten situaciones diferentes.',otra:'Describe con precisión el tipo de relación que estás observando.'};
+      guidance.textContent=messages[document.getElementById('collectiveRelationType').value]||'Explica la relación.';
+    });
+    document.getElementById('btnCreateCollectiveRelation')?.addEventListener('click',createCollectiveRelationFromUI);
     document.getElementById('findingSearch')?.addEventListener('input', () => updateExplorationUI());
     document.getElementById('findingTypeFilter')?.addEventListener('change', () => updateExplorationUI());
 
