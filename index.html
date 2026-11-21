@@ -3770,51 +3770,60 @@
       const ex=state.exploration,relations=(ex.collectiveRelations||[]).filter(r=>r.status!=='archivado'),interpretations=(ex.emergentInterpretations||[]).filter(r=>r.status!=='archivado');
       const width=base.width,margin=42,contentWidth=width-margin*2;
       const relationRows=relations.slice(0,18),interpretationRows=interpretations.slice(0,18);
-      const rowHeight=118,headerHeight=110,footerHeight=54;
+      const rowHeight=160,headerHeight=110,footerHeight=54;
       const height=base.height+headerHeight+(relationRows.length+interpretationRows.length)*rowHeight+footerHeight;
       const out=document.createElement('canvas');out.width=width;out.height=height;
       const g=out.getContext('2d');g.fillStyle='#f5f0e8';g.fillRect(0,0,width,height);g.drawImage(base,0,0);
       let y=base.height;
       g.fillStyle='#f5f0e8';g.fillRect(0,y,width,height-y);
       g.fillStyle='#3e3732';g.font='600 30px Georgia, serif';g.fillText('NODO CERO · Red de relaciones y significados',margin,y+44);
-      g.fillStyle='#756c62';g.font='16px Arial, sans-serif';g.fillText('Representación de relaciones colectivas e interpretaciones documentadas',margin,y+74);
+      g.fillStyle='#756c62';g.font='16px Arial, sans-serif';g.fillText('Cada nodo conserva su tipo; los enlaces muestran fuentes y relaciones documentadas',margin,y+74);
       y+=headerHeight;
       const round=(x,yy,w,h,r)=>{g.beginPath();g.roundRect(x,yy,w,h,r);};
-      const wrap=(value,x,yy,maxWidth,lineHeight,maxLines=2)=>{
-        const words=String(value||'').split(/\s+/);let line='',lines=0;
-        for(const word of words){const test=line?line+' '+word:word;if(g.measureText(test).width>maxWidth&&line){g.fillText(line,x,yy+lines*lineHeight);lines++;line=word;if(lines>=maxLines)break;}else line=test;}
-        if(lines<maxLines&&line)g.fillText(line,x,yy+lines*lineHeight);
-        if(lines>=maxLines&&words.length>0)g.fillText('…',x+Math.min(g.measureText(line).width,maxWidth-14),yy+lines*lineHeight);
-      };
-      const drawCard=(title,subtitle,body,kind,index)=>{
+      const drawCard=(title,subtitle,body,kind,participants=[])=>{
         const x=margin,cardY=y,w=contentWidth,h=rowHeight-12;
         round(x,cardY,w,h,14);g.fillStyle='#fffdfa';g.fill();g.strokeStyle=kind==='relation'?'#d7b78c':'#8bbeb2';g.lineWidth=2;g.stroke();
-        g.fillStyle=kind==='relation'?'#8b6337':'#286b60';g.font='bold 15px Arial, sans-serif';g.fillText(title,x+18,cardY+26);
-        g.fillStyle='#756c62';g.font='13px Arial, sans-serif';g.fillText(subtitle,x+18,cardY+49);
-        g.fillStyle='#3e3732';g.font='14px Arial, sans-serif';wrap(body,x+18,cardY+74,w-36,18,2);
+        g.fillStyle=kind==='relation'?'#8b6337':'#286b60';g.font='bold 15px Arial, sans-serif';g.fillText(title,x+18,cardY+25);
+        g.fillStyle='#756c62';g.font='13px Arial, sans-serif';g.fillText(subtitle,x+18,cardY+47);
+        g.fillStyle='#3e3732';g.font='14px Arial, sans-serif';g.fillText(String(body||'').slice(0,Math.max(40,Math.floor(w/9)))+(String(body||'').length>w/9?'…':''),x+18,cardY+70);
+        const nodes=participants.slice(0,7),hubX=x+w/2,hubY=cardY+91;
+        if(nodes.length){
+          g.strokeStyle=kind==='relation'?'rgba(139,99,55,.45)':'rgba(40,107,96,.45)';g.lineWidth=2;
+          nodes.forEach((node,i)=>{
+            const slot=w/nodes.length,centerX=x+slot*(i+.5),centerY=cardY+119;
+            g.beginPath();g.moveTo(hubX,hubY);g.lineTo(centerX,centerY-7);g.stroke();
+          });
+          g.beginPath();g.arc(hubX,hubY,7,0,Math.PI*2);g.fillStyle=kind==='relation'?'#b8874f':'#4b9387';g.fill();
+          nodes.forEach((node,i)=>{
+            const slot=w/nodes.length,cx=x+slot*(i+.5),pillW=Math.max(70,Math.min(190,slot-10)),pillX=cx-pillW/2;
+            round(pillX,cardY+111,pillW,25,8);g.fillStyle=kind==='relation'?'#f4eadc':'#e4f0ec';g.fill();
+            g.fillStyle='#3e3732';g.font='11px Arial, sans-serif';const label=String(node).slice(0,Math.max(8,Math.floor(pillW/7)));g.textAlign='center';g.fillText(label,cx,cardY+128);g.textAlign='left';
+          });
+          if(participants.length>nodes.length){g.fillStyle='#756c62';g.font='10px Arial, sans-serif';g.fillText('+'+(participants.length-nodes.length)+' fuentes adicionales',x+w-180,cardY+143);}
+        }
         y+=rowHeight;
       };
       relationRows.forEach((r,i)=>{
         const labels=(r.participantRefs||[]).map(ref=>{
           if(ref.entityType==='territorio')return TERRITORIES.find(t=>t.id===ref.entityId)?.shortTitle||'Territorio';
           const col=COLLECTIVE_PARTICIPANT_COLLECTIONS[ref.entityType],item=col?(ex[col]||[]).find(v=>v.id===ref.entityId):null;
-          return item?String(item.text||item.descripcion||item.meaning||item.id).slice(0,52):'Fuente histórica';
+          return item?String(item.text||item.descripcion||item.meaning||item.id).slice(0,45):'Fuente histórica';
         });
-        drawCard('RELACIÓN COLECTIVA '+(i+1)+' · '+(collectiveRelationLabels[r.relationType]||r.relationType),labels.length+' participantes · relación de orden superior',r.meaning+'  |  '+labels.join('  +  '),'relation',i);
+        drawCard('RELACIÓN COLECTIVA '+(i+1)+' · '+(collectiveRelationLabels[r.relationType]||r.relationType),labels.length+' participantes · hiperarista documentada',r.meaning,'relation',labels);
       });
       interpretationRows.forEach((r,i)=>{
         const direct=(r.sourceParticipantRefs||[]).map(ref=>{
           if(ref.entityType==='territorio')return TERRITORIES.find(t=>t.id===ref.entityId)?.shortTitle||'Territorio';
           const col=COLLECTIVE_PARTICIPANT_COLLECTIONS[ref.entityType],item=col?(ex[col]||[]).find(v=>v.id===ref.entityId):null;
-          return item?String(item.text||item.descripcion||item.meaning||item.id).slice(0,45):'Fuente histórica';
+          return item?String(item.text||item.descripcion||item.meaning||item.id).slice(0,42):'Fuente histórica';
         });
-        const relationNames=(r.sourceRelationIds||[]).map(id=>{const rel=relations.find(v=>v.id===id);return rel?'Puente: '+rel.meaning.slice(0,45):'Puente histórico';});
-        const sourceNames=[...direct,...relationNames];
-        drawCard('INTERPRETACIÓN '+(i+1)+' · '+(r.epistemicStatus==='hipotesis'?'HIPÓTESIS':'INFERENCIA'),sourceNames.length+' fuentes · '+r.id,r.text+'  |  Fuentes: '+sourceNames.join('  +  '),'interpretation',i);
+        const relationNames=(r.sourceRelationIds||[]).map(id=>{const rel=relations.find(v=>v.id===id);return rel?'Puente colectivo':'Puente histórico';});
+        drawCard('INTERPRETACIÓN '+(i+1)+' · '+(r.epistemicStatus==='hipotesis'?'HIPÓTESIS':'INFERENCIA'),direct.length+relationNames.length+' fuentes · '+r.id,r.text,'interpretation',[...direct,...relationNames]);
       });
       if(!relationRows.length&&!interpretationRows.length){g.fillStyle='#756c62';g.font='16px Arial, sans-serif';g.fillText('Todavía no hay relaciones colectivas ni interpretaciones emergentes activas.',margin,y+25);}
-      if(relations.length>relationRows.length||interpretations.length>interpretationRows.length){g.fillStyle='#756c62';g.font='13px Arial, sans-serif';g.fillText('La imagen muestra hasta 18 relaciones y 18 interpretaciones activas. El respaldo JSON conserva el conjunto completo.',margin,height-22);}
-      else {g.fillStyle='#756c62';g.font='13px Arial, sans-serif';g.fillText('Cada relación colectiva conserva sus participantes; cada interpretación conserva sus fuentes. La proximidad visual no implica causalidad.',margin,height-22);}
+      g.fillStyle='#756c62';g.font='13px Arial, sans-serif';
+      if(relations.length>relationRows.length||interpretations.length>interpretationRows.length)g.fillText('La imagen muestra hasta 18 relaciones y 18 interpretaciones activas. El respaldo JSON conserva el conjunto completo.',margin,height-22);
+      else g.fillText('Los enlaces representan fuentes documentadas. La estructura no demuestra causalidad.',margin,height-22);
       return out;
     }
 
