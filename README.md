@@ -79,6 +79,7 @@ Desde la raíz del repositorio, con Node.js:
 ```bash
 node tests/nodo-cero-ciclo1.test.js
 node tests/nodo-cero-ciclo2.test.js
+node tests/nodo-cero-relaciones-colectivas.test.js
 ```
 
 Las suites verifican estructura, contratos y condiciones estáticas del código. No sustituyen pruebas funcionales manuales en Chrome o Edge ni una prueba E2E real.
@@ -87,6 +88,10 @@ Consulta:
 - [Informe del Ciclo 1](NODO_CERO_CICLO1_INFORME.md)
 - [Informe del Ciclo 2](NODO_CERO_CICLO2_INFORME.md)
 - [Checklist de liberación](NODO_CERO_RELEASE_CHECKLIST.md)
+
+## Relaciones colectivas e interpretaciones emergentes
+
+La arquitectura contempla relaciones entre dos o más registros y lecturas emergentes trazables. La implementación del modelo de datos y persistencia se encuentra en curso; los constructores de interfaz y las exportaciones específicas se liberarán en subiteraciones posteriores. Consulta la [especificación de arquitectura](NODO_CERO_RELACIONES_COLECTIVAS_ESPECIFICACION.md).
 
 ## Publicación
 
