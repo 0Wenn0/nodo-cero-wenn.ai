@@ -29,9 +29,11 @@ jobs:
         run: node tests/nodo-cero-proyectar-needs.test.js
       - name: Run collective relations UI suite
         run: node tests/nodo-cero-relaciones-colectivas-ui.test.js
+      - name: Run emergent interpretations suite
+        run: node tests/nodo-cero-interpretaciones-emergentes.test.js
 
   browser-e2e:
-    name: Chromium E2E · collective relations
+    name: Chromium E2E · collective relations and emergent interpretations
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -54,5 +56,7 @@ jobs:
           done
           cat /tmp/nodo-cero-http.log
           exit 1
-      - name: Run Chromium E2E
+      - name: Run collective relations E2E
         run: node tests/nodo-cero-relaciones-colectivas.e2e.cjs
+      - name: Run emergent interpretations E2E
+        run: node tests/nodo-cero-interpretaciones-emergentes.e2e.cjs
