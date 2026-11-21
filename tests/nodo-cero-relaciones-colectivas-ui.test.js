@@ -24,6 +24,12 @@ check('La edición crea versión y actualiza el significado',()=>assert.ok(js.in
 check('Los listeners del constructor están conectados',()=>['collectiveSearch','collectiveTypeFilter','collectiveTerritoryFilter','btnCreateCollectiveRelation'].every(id=>js.includes(`getElementById('${id}')?.addEventListener`)));
 check('JavaScript inline mantiene sintaxis válida',()=>{assert.ok(scripts.length);scripts.forEach(x=>new vm.Script(x[1]));});
 check('No hay IDs HTML duplicados',()=>{const ids=[...html.matchAll(/\bid=["']([^"']+)["']/g)].map(x=>x[1]);assert.equal(new Set(ids).size,ids.length);});
+check('La edición integral permite cambiar categoría y participantes',()=>assert.ok(js.includes('function updateCollectiveRelation')&&js.includes('record.participantRefs=refs;record.relationType=data.relationType;record.meaning=meaning')));
+check('La edición conserva identidad y crea snapshot completo de versión',()=>assert.ok(js.includes("reason:'Edición de relación colectiva'")&&js.includes('entityId:record.id')&&js.includes('content:previous')));
+check('La edición rechaza menos de tres participantes y duplicados exactos',()=>assert.ok(js.includes('refs.length<3')&&js.includes('Ya existe una relación activa idéntica')));
+check('El editor inline ofrece búsqueda y selección de participantes',()=>assert.ok(js.includes('function openCollectiveRelationEditor')&&js.includes('Buscar participantes')&&js.includes('type=\'checkbox\'')));
+check('Restaurar historial recupera categoría y participantes colectivos',()=>assert.ok(js.includes("if(record.recordType==='relacion_colectiva')")&&js.includes('record.participantRefs=JSON.parse(JSON.stringify(snapshot.participantRefs))')&&js.includes('record.relationType=snapshot.relationType')));
+check('La restauración crea una versión nueva y conserva el ID',()=>assert.ok(js.includes('reason:`Restauración de contenido de versión ${versionNumber}`')&&js.includes('entityId:record.id')));
 const failed=checks.filter(x=>x.result==='FAIL');
 console.log(JSON.stringify({passed:checks.length-failed.length,total:checks.length,checks},null,2));
 if(failed.length)process.exitCode=1;
