@@ -2637,7 +2637,7 @@
       const {id,collection,label}=activeRecordAction;
       try {
         archiveRecord(collection,id);
-        closeRecordAction(); updateExplorationUI(); const subject=label.charAt(0).toUpperCase()+label.slice(1); const feminine=['evidencia','interpretación','necesidad','oportunidad','conexión','posibilidad'].includes(label.toLowerCase()); showToast(`${subject} ${feminine?'archivada':'archivado'}`);
+        closeRecordAction(); updateExplorationUI(); const subject=label.charAt(0).toUpperCase()+label.slice(1); const feminine=['evidencia','interpretación','necesidad','oportunidad','conexión','posibilidad','relación colectiva'].includes(label.toLowerCase()); showToast(`${subject} ${feminine?'archivada':'archivado'}`);
       } catch(err){ relatedStatus(err.message); }
     }
     function createRelatedRecord(collectionName, data, type) {
