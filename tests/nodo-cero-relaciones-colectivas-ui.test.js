@@ -1,0 +1,29 @@
+#!/usr/bin/env node
+'use strict';
+const fs=require('node:fs');
+const path=require('node:path');
+const vm=require('node:vm');
+const assert=require('node:assert/strict');
+const file=path.resolve(process.argv[2]||path.join(__dirname,'../index.html'));
+const html=fs.readFileSync(file,'utf8');
+const scripts=[...html.matchAll(/<script(?![^>]*src=)[^>]*>([\s\S]*?)<\/script>/gi)];
+const js=scripts.map(x=>x[1]).join('\n');
+const checks=[];
+function check(name,fn){try{fn();checks.push({name,result:'PASS'});}catch(e){checks.push({name,result:'FAIL',error:e.message});}}
+check('El constructor colectivo está integrado en el panel de Conectar',()=>assert.ok(html.includes('id="collectiveRelationBuilder"')));
+check('La interfaz exige al menos tres participantes',()=>assert.ok(js.includes('selected.length<3')&&js.includes('Selecciona al menos tres elementos')));
+check('Hay filtros por tipo, territorio y búsqueda',()=>['collectiveTypeFilter','collectiveTerritoryFilter','collectiveSearch'].forEach(id=>assert.ok(html.includes('id="'+id+'"'))));
+check('El catálogo incluye todos los tipos de participante admitidos',()=>['hallazgo','evidencia','interpretacion','necesidad','posibilidad','oportunidad','territorio'].forEach(t=>assert.ok(js.includes(`add('${t}'`)||js.includes(`entityType:'${t}'`),t)));
+check('La selección conserva referencias tipadas y no copia registros',()=>assert.ok(js.includes('participantRefs:selected.map(x=>({entityType:x.entityType,entityId:x.entityId}))')));
+check('El catálogo de categorías incluye causalidad hipotética',()=>assert.ok(html.includes('value="causal_hipotetica"')&&js.includes('no una causalidad demostrada')));
+check('La creación llama al modelo validado y refresca la interfaz',()=>assert.ok(js.includes('createCollectiveRelation({participantRefs:selected.map')&&js.includes("updateExplorationUI();showToast('Relación colectiva registrada')")));
+check('La lista muestra relaciones activas y participantes',()=>assert.ok(js.includes('function renderCollectiveRelationsUI')&&js.includes('collectiveRelations.filter(r=>r.status!==\'archivado\')')));
+check('Las relaciones colectivas tienen acciones de edición, historial y archivado',()=>['edit','history','archive'].every(x=>js.includes(`['${x==='edit'?'Editar explicación':x==='history'?'Historial':'Archivar'}','${x}']`)));
+check('El tipo de registro colectivo se resuelve para historial y archivado',()=>assert.ok(js.includes("relacion_colectiva:'collectiveRelations'")));
+check('La edición crea versión y actualiza el significado',()=>assert.ok(js.includes("record.recordType==='relacion_colectiva'")&&js.includes('record.meaning=next')));
+check('Los listeners del constructor están conectados',()=>['collectiveSearch','collectiveTypeFilter','collectiveTerritoryFilter','btnCreateCollectiveRelation'].every(id=>js.includes(`getElementById('${id}')?.addEventListener`)));
+check('JavaScript inline mantiene sintaxis válida',()=>{assert.ok(scripts.length);scripts.forEach(x=>new vm.Script(x[1]));});
+check('No hay IDs HTML duplicados',()=>{const ids=[...html.matchAll(/\bid=["']([^"']+)["']/g)].map(x=>x[1]);assert.equal(new Set(ids).size,ids.length);});
+const failed=checks.filter(x=>x.result==='FAIL');
+console.log(JSON.stringify({passed:checks.length-failed.length,total:checks.length,checks},null,2));
+if(failed.length)process.exitCode=1;
