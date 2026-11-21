@@ -1,5 +1,6 @@
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 (async()=>{
  const browser=await chromium.launch({headless:true});
  const context=await browser.newContext({viewport:{width:1440,height:1000}});
@@ -57,6 +58,18 @@ const assert = require('node:assert/strict');
   await restored.getByText('Historial',{exact:true}).click();
   await page.getByText('Restaurar esta versión',{exact:true}).first().click();
   await page.getByText('Versión 1 restaurada',{exact:true}).waitFor({timeout:10000});
+  const mdDownloadPromise=page.waitForEvent('download');
+  await page.locator('#btnDownloadMarkdown').click();
+  const mdDownload=await mdDownloadPromise,mdPath=await mdDownload.path();
+  const markdown=fs.readFileSync(mdPath,'utf8');
+  assert.ok(markdown.includes('## 5. Relaciones colectivas'));
+  assert.ok(markdown.includes('## 6. Interpretaciones emergentes'));
+  assert.ok(markdown.includes('Cadena de interpretaciones'));
+  const pngDownloadPromise=page.waitForEvent('download');
+  await page.locator('#btnExportPNG').click();
+  const pngDownload=await pngDownloadPromise,pngPath=await pngDownload.path();
+  assert.ok(fs.statSync(pngPath).size>10000,'El PNG de constelación y red debe contener una imagen renderizada');
+
   await page.locator('#emergentInterpretationsList article').first().getByText('Archivar',{exact:true}).click();
   await page.locator('#btnConfirmRecordAction').click();
   await page.waitForFunction(()=>document.querySelectorAll('#emergentInterpretationsList article').length===0);
