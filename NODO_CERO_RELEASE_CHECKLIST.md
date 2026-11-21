@@ -71,3 +71,17 @@
 - [ ] Archivado en cascada conserva registros e historiales y se revierte ante error.
 - [ ] El respaldo JSON nuevo conserva referencias e historiales.
 - [ ] Ejecutar `node tests/nodo-cero-relaciones-colectivas.test.js`.
+
+## Iteración B — Constructor visual de relaciones colectivas
+- [ ] Filtrar participantes por tipo y territorio.
+- [ ] Buscar participantes por contenido.
+- [ ] Seleccionar tres o más registros/territorios de distintos tipos.
+- [ ] Verificar que un elemento puede participar en varias relaciones.
+- [ ] Guardar categoría y explicación argumentada.
+- [ ] Confirmar que la categoría causal se presenta como hipotética.
+- [ ] Consultar las relaciones colectivas activas y sus participantes.
+- [ ] Editar explicación y comprobar que crea una versión sin cambiar el ID.
+- [ ] Consultar/restaurar historial.
+- [ ] Archivar una relación y comprobar que se conserva en el historial.
+- [ ] Recargar y verificar persistencia.
+- [ ] Ejecutar `node tests/nodo-cero-relaciones-colectivas-ui.test.js`.
