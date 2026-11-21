@@ -31,6 +31,25 @@ const assert = require('node:assert/strict');
   await page.getByText('Interpretación emergente actualizada.',{exact:true}).waitFor({timeout:10000});
   await page.reload({waitUntil:'load'});
   await page.waitForSelector('#emergentInterpretationsList article');
+  // Una interpretación previa puede convertirse en fuente de una nueva lectura.
+  const emergentSourceLabel=page.locator('#emergentSourceCandidates label').filter({hasText:'Interpretación emergente'}).first();
+  await emergentSourceLabel.locator('input').check();
+  const territorySourceLabel=page.locator('#emergentSourceCandidates label').filter({hasText:'Territorio'}).first();
+  await territorySourceLabel.locator('input').check();
+  await page.locator('#emergentInterpretationText').fill('Una segunda lectura amplía la inferencia anterior al incorporar otra perspectiva territorial.');
+  await page.locator('#emergentEpistemicStatus').selectOption('inferencia');
+  await page.locator('#btnCreateEmergentInterpretation').click();
+  await assert.equal(await page.locator('#emergentInterpretationsList article').count(),2);
+  // Intentar que la primera dependa de la segunda crearía un ciclo y debe rechazarse.
+  const firstCard=page.locator('#emergentInterpretationsList article').first();
+  await firstCard.getByText('Editar lectura',{exact:true}).click();
+  const cycleSource=firstCard.locator('.emergent-inline-editor label').filter({hasText:'Interpretación emergente'}).last();
+  await cycleSource.locator('input').check();
+  await firstCard.locator('.emergent-inline-editor button').filter({hasText:'Guardar cambios'}).click();
+  await assert.ok((await firstCard.locator('.emergent-inline-editor').innerText()).includes('ciclo'));
+  await firstCard.locator('.emergent-inline-editor button').filter({hasText:'Cancelar'}).click();
+
+  await page.waitForSelector('#emergentInterpretationsList article');
   const restored=page.locator('#emergentInterpretationsList article').first();
   await assert.ok((await restored.innerText()).includes('Inferencia'));
   await restored.getByText('Historial',{exact:true}).click();
