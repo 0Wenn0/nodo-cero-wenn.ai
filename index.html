@@ -32,6 +32,21 @@
       color: #272321;
     }
 
+    /* Fondo atmosférico Three.js (gris-background.js) detrás del archipiélago */
+    #grisBackground {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+      display: block;
+    }
+    #worldCanvas {
+      position: relative;
+      z-index: 1;
+    }
+
     .font-editorial {
       font-family: var(--font-serif);
     }
@@ -102,6 +117,9 @@
   </style>
 </head>
 <body class="relative w-full h-full overflow-hidden select-none">
+
+  <!-- Fondo atmosférico en Three.js inspirado en GRIS (decorativo) -->
+  <canvas id="grisBackground" aria-hidden="true"></canvas>
 
   <!-- Lienzo interactivo de acuarela, ruinas e islas conectables -->
   <canvas id="worldCanvas" class="block w-full h-full cursor-grab active:cursor-grabbing touch-none"></canvas>
@@ -1536,10 +1554,18 @@
       if (event.target && event.target.matches('input:not([type="file"]), textarea, select')) markUnsavedChanges();
     });
 
+    // Puente de solo lectura para el fondo Three.js (gris-background.js)
+    window.NodoCeroScene = {
+      getCamera: () => state.camera,
+      getStage: () => state.currentStage
+    };
+
     function setStage(stageKey) {
       if (!STAGES_CONFIG[stageKey]) return;
       state.currentStage = stageKey;
       const cfg = STAGES_CONFIG[stageKey];
+      document.documentElement.dataset.stage = stageKey;
+      document.dispatchEvent(new CustomEvent('nodocero:stage', { detail: { stage: stageKey } }));
 
       // Actualizar botones de barra superior
       document.querySelectorAll('.stage-btn').forEach(btn => {
@@ -1773,13 +1799,22 @@
       ctx.save();
       ctx.scale(dpr, dpr);
 
-      // Fondo papel acuarela cálido
-      const bgGrad = ctx.createLinearGradient(0, 0, width, height);
-      bgGrad.addColorStop(0, '#f7f2eb');
-      bgGrad.addColorStop(0.5, '#f3ece2');
-      bgGrad.addColorStop(1, '#ece3d7');
-      ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, width, height);
+      const grisBackgroundActive = isGrisBackgroundActive();
+      if (grisBackgroundActive) {
+        // El fondo Three.js pinta el paisaje; aquí solo un velo de papel para que
+        // islas, puentes y textos conserven contraste sobre la acuarela.
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = 'rgba(247, 242, 235, 0.30)';
+        ctx.fillRect(0, 0, width, height);
+      } else {
+        // Fondo papel acuarela cálido (respaldo sin WebGL)
+        const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+        bgGrad.addColorStop(0, '#f7f2eb');
+        bgGrad.addColorStop(0.5, '#f3ece2');
+        bgGrad.addColorStop(1, '#ece3d7');
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+      }
 
       ctx.save();
       ctx.translate(width / 2, height / 2);
@@ -1797,8 +1832,8 @@
         ctx.fill();
       });
 
-      // Ruinas geométricas en el horizonte (estilo GRIS)
-      drawBackgroundRuins();
+      // Ruinas geométricas en el horizonte (estilo GRIS); con el fondo 3D ya presentes
+      if (!grisBackgroundActive) drawBackgroundRuins();
 
       // Ondas expansivas de color
       state.bloomWaves.forEach(w => {
@@ -1846,6 +1881,10 @@
 
       ctx.restore();
       ctx.restore();
+    }
+
+    function isGrisBackgroundActive() {
+      return Boolean(window.NodoGrisBackground && window.NodoGrisBackground.active);
     }
 
     function drawBackgroundRuins() {
@@ -3349,6 +3388,17 @@
       ].join('\n');
     }
 
+    // Compone el fondo Three.js debajo del archipiélago para que el PNG no quede transparente
+    function composeConstellationWithBackground() {
+      const out = document.createElement('canvas');
+      out.width = canvas.width;
+      out.height = canvas.height;
+      const outCtx = out.getContext('2d');
+      window.NodoGrisBackground.drawInto(outCtx, out.width, out.height);
+      outCtx.drawImage(canvas, 0, 0);
+      return out;
+    }
+
     function exportConstellationPNG() {
       const prevMode = state.constellationMode;
       state.constellationMode = true;
@@ -3356,7 +3406,9 @@
       try {
         const link = document.createElement('a');
         link.download = 'nodo-cero-constelacion.png';
-        link.href = canvas.toDataURL('image/png');
+        link.href = isGrisBackgroundActive()
+          ? composeConstellationWithBackground().toDataURL('image/png')
+          : canvas.toDataURL('image/png');
         link.click();
         showToast('Imagen de tu Constelación descargada (.png)');
       } catch (e) {
@@ -3740,5 +3792,7 @@
       requestAnimationFrame(loop);
     };
   </script>
+  <!-- Fondo Three.js: si WebGL o el CDN fallan, el lienzo 2D conserva su fondo de papel -->
+  <script type="module" src="./gris-background.js"></script>
 </body>
 </html>
