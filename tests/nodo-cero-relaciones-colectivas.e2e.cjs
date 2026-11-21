@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
  const errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  try{
-  await page.goto(process.env.NODO_CERO_URL||'http://127.0.0.1:4173/',{waitUntil:'networkidle',timeout:60000});
+  await page.goto(process.env.NODO_CERO_URL||'http://127.0.0.1:4173/',{waitUntil:'load',timeout:60000});
   await page.waitForSelector('#collectiveRelationBuilder',{timeout:20000});
   await page.locator('#collectiveTypeFilter').selectOption('territorio');
   const checks=page.locator('#collectiveCandidates input[type=checkbox]');
@@ -35,7 +35,7 @@ const assert = require('node:assert/strict');
   await panel.getByRole('button',{name:'Restaurar esta versión'}).first().click();
   await page.getByText('Versión 1 restaurada',{exact:true}).waitFor({timeout:10000});
   await assert.equal(await page.locator('#collectiveRelationsList article').first().locator('div').first().innerText(),'Patrón');
-  await page.reload({waitUntil:'networkidle'});
+  await page.reload({waitUntil:'load'});
   await page.waitForSelector('#collectiveRelationsList article');
   await assertCount(page.locator('#collectiveRelationsList article'),1,'La relación restaurada persiste tras recarga');
   const finalCard=page.locator('#collectiveRelationsList article').first();
