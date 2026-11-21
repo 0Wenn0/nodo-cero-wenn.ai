@@ -8,6 +8,7 @@ const assert = require('node:assert/strict');
  try{
   await page.goto(process.env.NODO_CERO_URL||'http://127.0.0.1:4173/',{waitUntil:'load',timeout:60000});
   await page.waitForSelector('#collectiveRelationBuilder',{timeout:20000});
+  if(await page.locator('#guideModal').isVisible()) await page.locator('#btnCloseGuideTop').click();
   await page.locator('#collectiveTypeFilter').selectOption('territorio');
   const checks=page.locator('#collectiveCandidates input[type=checkbox]');
   await checks.nth(0).check();await checks.nth(1).check();await checks.nth(2).check();
