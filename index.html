@@ -3765,6 +3765,59 @@
       return out;
     }
 
+    function buildKnowledgeGraphPNG() {
+      const base=isGrisBackgroundActive()?composeConstellationWithBackground():canvas;
+      const ex=state.exploration,relations=(ex.collectiveRelations||[]).filter(r=>r.status!=='archivado'),interpretations=(ex.emergentInterpretations||[]).filter(r=>r.status!=='archivado');
+      const width=base.width,margin=42,contentWidth=width-margin*2;
+      const relationRows=relations.slice(0,18),interpretationRows=interpretations.slice(0,18);
+      const rowHeight=118,headerHeight=110,footerHeight=54;
+      const height=base.height+headerHeight+(relationRows.length+interpretationRows.length)*rowHeight+footerHeight;
+      const out=document.createElement('canvas');out.width=width;out.height=height;
+      const g=out.getContext('2d');g.fillStyle='#f5f0e8';g.fillRect(0,0,width,height);g.drawImage(base,0,0);
+      let y=base.height;
+      g.fillStyle='#f5f0e8';g.fillRect(0,y,width,height-y);
+      g.fillStyle='#3e3732';g.font='600 30px Georgia, serif';g.fillText('NODO CERO · Red de relaciones y significados',margin,y+44);
+      g.fillStyle='#756c62';g.font='16px Arial, sans-serif';g.fillText('Representación de relaciones colectivas e interpretaciones documentadas',margin,y+74);
+      y+=headerHeight;
+      const round=(x,yy,w,h,r)=>{g.beginPath();g.roundRect(x,yy,w,h,r);};
+      const wrap=(value,x,yy,maxWidth,lineHeight,maxLines=2)=>{
+        const words=String(value||'').split(/\s+/);let line='',lines=0;
+        for(const word of words){const test=line?line+' '+word:word;if(g.measureText(test).width>maxWidth&&line){g.fillText(line,x,yy+lines*lineHeight);lines++;line=word;if(lines>=maxLines)break;}else line=test;}
+        if(lines<maxLines&&line)g.fillText(line,x,yy+lines*lineHeight);
+        if(lines>=maxLines&&words.length>0)g.fillText('…',x+Math.min(g.measureText(line).width,maxWidth-14),yy+lines*lineHeight);
+      };
+      const drawCard=(title,subtitle,body,kind,index)=>{
+        const x=margin,cardY=y,w=contentWidth,h=rowHeight-12;
+        round(x,cardY,w,h,14);g.fillStyle='#fffdfa';g.fill();g.strokeStyle=kind==='relation'?'#d7b78c':'#8bbeb2';g.lineWidth=2;g.stroke();
+        g.fillStyle=kind==='relation'?'#8b6337':'#286b60';g.font='bold 15px Arial, sans-serif';g.fillText(title,x+18,cardY+26);
+        g.fillStyle='#756c62';g.font='13px Arial, sans-serif';g.fillText(subtitle,x+18,cardY+49);
+        g.fillStyle='#3e3732';g.font='14px Arial, sans-serif';wrap(body,x+18,cardY+74,w-36,18,2);
+        y+=rowHeight;
+      };
+      relationRows.forEach((r,i)=>{
+        const labels=(r.participantRefs||[]).map(ref=>{
+          if(ref.entityType==='territorio')return TERRITORIES.find(t=>t.id===ref.entityId)?.shortTitle||'Territorio';
+          const col=COLLECTIVE_PARTICIPANT_COLLECTIONS[ref.entityType],item=col?(ex[col]||[]).find(v=>v.id===ref.entityId):null;
+          return item?String(item.text||item.descripcion||item.meaning||item.id).slice(0,52):'Fuente histórica';
+        });
+        drawCard('RELACIÓN COLECTIVA '+(i+1)+' · '+(collectiveRelationLabels[r.relationType]||r.relationType),labels.length+' participantes · relación de orden superior',r.meaning+'  |  '+labels.join('  +  '),'relation',i);
+      });
+      interpretationRows.forEach((r,i)=>{
+        const direct=(r.sourceParticipantRefs||[]).map(ref=>{
+          if(ref.entityType==='territorio')return TERRITORIES.find(t=>t.id===ref.entityId)?.shortTitle||'Territorio';
+          const col=COLLECTIVE_PARTICIPANT_COLLECTIONS[ref.entityType],item=col?(ex[col]||[]).find(v=>v.id===ref.entityId):null;
+          return item?String(item.text||item.descripcion||item.meaning||item.id).slice(0,45):'Fuente histórica';
+        });
+        const relationNames=(r.sourceRelationIds||[]).map(id=>{const rel=relations.find(v=>v.id===id);return rel?'Puente: '+rel.meaning.slice(0,45):'Puente histórico';});
+        const sourceNames=[...direct,...relationNames];
+        drawCard('INTERPRETACIÓN '+(i+1)+' · '+(r.epistemicStatus==='hipotesis'?'HIPÓTESIS':'INFERENCIA'),sourceNames.length+' fuentes · '+r.id,r.text+'  |  Fuentes: '+sourceNames.join('  +  '),'interpretation',i);
+      });
+      if(!relationRows.length&&!interpretationRows.length){g.fillStyle='#756c62';g.font='16px Arial, sans-serif';g.fillText('Todavía no hay relaciones colectivas ni interpretaciones emergentes activas.',margin,y+25);}
+      if(relations.length>relationRows.length||interpretations.length>interpretationRows.length){g.fillStyle='#756c62';g.font='13px Arial, sans-serif';g.fillText('La imagen muestra hasta 18 relaciones y 18 interpretaciones activas. El respaldo JSON conserva el conjunto completo.',margin,height-22);}
+      else {g.fillStyle='#756c62';g.font='13px Arial, sans-serif';g.fillText('Cada relación colectiva conserva sus participantes; cada interpretación conserva sus fuentes. La proximidad visual no implica causalidad.',margin,height-22);}
+      return out;
+    }
+
     function exportConstellationPNG() {
       const prevMode = state.constellationMode;
       state.constellationMode = true;
@@ -3772,9 +3825,7 @@
       try {
         const link = document.createElement('a');
         link.download = 'nodo-cero-constelacion.png';
-        link.href = isGrisBackgroundActive()
-          ? composeConstellationWithBackground().toDataURL('image/png')
-          : canvas.toDataURL('image/png');
+        link.href = buildKnowledgeGraphPNG().toDataURL('image/png');
         link.click();
         showToast('Imagen de tu Constelación descargada (.png)');
       } catch (e) {
