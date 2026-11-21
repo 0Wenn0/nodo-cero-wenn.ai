@@ -80,6 +80,7 @@ Desde la raíz del repositorio, con Node.js:
 node tests/nodo-cero-ciclo1.test.js
 node tests/nodo-cero-ciclo2.test.js
 node tests/nodo-cero-relaciones-colectivas.test.js
+node tests/nodo-cero-relaciones-colectivas-ui.test.js
 ```
 
 Las suites verifican estructura, contratos y condiciones estáticas del código. No sustituyen pruebas funcionales manuales en Chrome o Edge ni una prueba E2E real.
@@ -87,11 +88,12 @@ Las suites verifican estructura, contratos y condiciones estáticas del código.
 Consulta:
 - [Informe del Ciclo 1](NODO_CERO_CICLO1_INFORME.md)
 - [Informe del Ciclo 2](NODO_CERO_CICLO2_INFORME.md)
+- [Informe de Iteración B](NODO_CERO_ITERACION_B_INFORME.md)
 - [Checklist de liberación](NODO_CERO_RELEASE_CHECKLIST.md)
 
 ## Relaciones colectivas e interpretaciones emergentes
 
-La arquitectura contempla relaciones entre dos o más registros y lecturas emergentes trazables. La implementación del modelo de datos y persistencia se encuentra en curso; los constructores de interfaz y las exportaciones específicas se liberarán en subiteraciones posteriores. Consulta la [especificación de arquitectura](NODO_CERO_RELACIONES_COLECTIVAS_ESPECIFICACION.md) y el [informe de implementación A](NODO_CERO_ITERACION_A_INFORME.md).
+La aplicación ya incluye un constructor de relaciones colectivas en la etapa CONECTAR. Permite filtrar por tipo y territorio, buscar elementos, seleccionar tres o más participantes, elegir una categoría y documentar el significado compartido. Las relaciones activas se muestran con acciones de edición, historial y archivado. Las interpretaciones emergentes y las exportaciones específicas siguen pendientes de sus subiteraciones C y D. Consulta la [especificación de arquitectura](NODO_CERO_RELACIONES_COLECTIVAS_ESPECIFICACION.md) y el [informe de implementación A](NODO_CERO_ITERACION_A_INFORME.md).
 
 ## Publicación
 
