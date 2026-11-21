@@ -27,3 +27,5 @@ jobs:
         run: node tests/nodo-cero-ciclo2.test.js
       - name: Run PROYECTAR needs regression suite
         run: node tests/nodo-cero-proyectar-needs.test.js
+      - name: Run collective relations UI suite
+        run: node tests/nodo-cero-relaciones-colectivas-ui.test.js
