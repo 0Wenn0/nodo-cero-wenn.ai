@@ -91,7 +91,7 @@ Consulta:
 
 ## Relaciones colectivas e interpretaciones emergentes
 
-La arquitectura contempla relaciones entre dos o más registros y lecturas emergentes trazables. La implementación del modelo de datos y persistencia se encuentra en curso; los constructores de interfaz y las exportaciones específicas se liberarán en subiteraciones posteriores. Consulta la [especificación de arquitectura](NODO_CERO_RELACIONES_COLECTIVAS_ESPECIFICACION.md).
+La arquitectura contempla relaciones entre dos o más registros y lecturas emergentes trazables. La implementación del modelo de datos y persistencia se encuentra en curso; los constructores de interfaz y las exportaciones específicas se liberarán en subiteraciones posteriores. Consulta la [especificación de arquitectura](NODO_CERO_RELACIONES_COLECTIVAS_ESPECIFICACION.md) y el [informe de implementación A](NODO_CERO_ITERACION_A_INFORME.md).
 
 ## Publicación
 
