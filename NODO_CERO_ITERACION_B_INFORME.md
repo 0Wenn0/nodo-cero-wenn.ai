@@ -1,6 +1,6 @@
 # NODO CERO — Informe de Iteración B: constructor de relaciones colectivas
 
-**Estado:** constructor ampliado en `main`. Regresión estructural PASS. Recorrido E2E Chromium incorporado al CI y en ejecución/verificación.
+**Estado:** Iteración B implementada y validada en CI. El recorrido E2E con Chromium y las suites estructurales finalizaron en PASS. El commit probado está publicado mediante GitHub Pages.
 
 ## Alcance implementado
 
@@ -35,7 +35,12 @@ GitHub Actions completó con éxito las suites estructurales:
 
 **Total: 109/109 comprobaciones estructurales PASS.**
 
-El job de Chromium automatiza el flujo de creación, edición de participantes/categoría/significado, restauración de versión, recarga y archivado. Su resultado debe confirmarse en la ejecución enlazada antes de considerar validado el E2E.
+**E2E Chromium: PASS.** El navegador automatizado completó el flujo de creación, edición de participantes/categoría/significado, restauración de versión, persistencia tras recarga y archivado.
+
+- Ejecución: [GitHub Actions #44913299736](https://github.com/0Wenn0/nodo-cero-wenn.ai/actions/runs/44913299736).
+- Job Chromium: `136873485462`.
+- Commit probado: `406a1adfa145fb28fc9551d97ef3d35c4cd2d945`.
+- GitHub Pages para ese commit: ejecución [#44913298827](https://github.com/0Wenn0/nodo-cero-wenn.ai/actions/runs/44913298827), concluida en success.
 
 ## Criterios de cierre
 
@@ -45,11 +50,16 @@ El job de Chromium automatiza el flujo de creación, edición de participantes/c
 | Edición integral y validación de duplicados | PASS (estructura y contratos) |
 | Snapshot completo y restauración de participantes/categoría | PASS (estructura y contratos) |
 | Regresión estructural | PASS (109/109) |
-| E2E Chromium | En ejecución / pendiente de resultado final |
+| E2E Chromium | PASS |
+| Persistencia tras recarga en E2E | PASS |
+| Despliegue GitHub Pages del commit probado | PASS |
 | Responsive y accesibilidad manual | NOT TESTED |
 | Revisión manual de consola y navegador | NOT TESTED |
-| Despliegue final de GitHub Pages | Pendiente de confirmar |
 
 ## Fuera de alcance
 
 Las interpretaciones emergentes corresponden a Iteración C. La exportación Markdown y la visualización PNG de relaciones colectivas corresponden a Iteración D.
+
+## Alcance de la validación
+
+El E2E se ejecutó en Chromium dentro de GitHub Actions. Esto valida el recorrido automatizado descrito, pero no sustituye una revisión manual de responsive, accesibilidad con tecnologías de asistencia ni consola en distintos navegadores.
