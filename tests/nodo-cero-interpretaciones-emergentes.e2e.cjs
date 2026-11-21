@@ -34,8 +34,8 @@ const assert = require('node:assert/strict');
   // Una interpretación previa puede convertirse en fuente de una nueva lectura.
   const emergentSourceLabel=page.locator('#emergentSourceCandidates label').filter({hasText:'Interpretación emergente'}).first();
   await emergentSourceLabel.locator('input').check();
-  const territorySourceLabel=page.locator('#emergentSourceCandidates label').filter({hasText:'Territorio'}).first();
-  await territorySourceLabel.locator('input').check();
+  const findingSourceLabel=page.locator('#emergentSourceCandidates label').filter({hasText:/Hallazgo ·/}).first();
+  await findingSourceLabel.locator('input').check();
   await page.locator('#emergentInterpretationText').fill('Una segunda lectura amplía la inferencia anterior al incorporar otra perspectiva territorial.');
   await page.locator('#emergentEpistemicStatus').selectOption('inferencia');
   await page.locator('#btnCreateEmergentInterpretation').click();
