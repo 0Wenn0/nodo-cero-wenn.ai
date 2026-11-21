@@ -59,3 +59,15 @@
 - [ ] Recargar y comprobar que las relaciones persisten.
 - [ ] Exportar/importar JSON en entorno de prueba aislado y comprobar las relaciones.
 - [ ] Ejecutar `node tests/nodo-cero-proyectar-needs.test.js`.
+
+
+## Iteración A — Modelo de relaciones colectivas e interpretaciones emergentes
+- [ ] Los respaldos JSON anteriores se importan con las nuevas colecciones vacías.
+- [ ] Las relaciones colectivas admiten dos o más referencias tipadas válidas.
+- [ ] Se validan categoría, explicación, cardinalidad, referencias y duplicados.
+- [ ] Las interpretaciones emergentes exigen dos o más fuentes distintas.
+- [ ] Inferencia e hipótesis por contrastar se conservan como estados distintos.
+- [ ] IDs, historiales y versionRecords incluyen las nuevas entidades.
+- [ ] Archivado en cascada conserva registros e historiales y se revierte ante error.
+- [ ] El respaldo JSON nuevo conserva referencias e historiales.
+- [ ] Ejecutar `node tests/nodo-cero-relaciones-colectivas.test.js`.
