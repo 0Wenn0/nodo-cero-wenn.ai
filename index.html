@@ -2834,13 +2834,30 @@
       return atomicRecordMutation(() => {
         const record = collection.find(item => item.id === id);
         if (!record) return false;
-        record.status='archivado'; record.archivedAt=new Date().toISOString();
+        const now = new Date().toISOString();
+        record.status='archivado'; record.archivedAt=now;
         if (collection === state.exploration.findings) {
           state.exploration.bridgesMeanings.forEach(connection => {
             const touchesFinding = (connection.fromType==='hallazgo' && connection.fromId===id) || (connection.toType==='hallazgo' && connection.toId===id);
-            if (touchesFinding && connection.status!=='archivado') { connection.status='archivado'; connection.archivedAt=new Date().toISOString(); }
+            if (touchesFinding && connection.status!=='archivado') { connection.status='archivado'; connection.archivedAt=now; }
           });
         }
+        const typeByCollection = {findings:'hallazgo',evidences:'evidencia',interpretations:'interpretacion',needs:'necesidad',possibilities:'posibilidad',opportunities:'oportunidad'};
+        const archivedType = typeByCollection[Object.keys(typeByCollection).find(key=>state.exploration[key]===collection)];
+        const touchesArchivedRecord = ref => archivedType && ref?.entityType===archivedType && ref.entityId===id;
+        (state.exploration.collectiveRelations || []).forEach(relation => {
+          if (relation.status!=='archivado' && (relation.participantRefs || []).some(touchesArchivedRecord)) {
+            relation.status='archivado'; relation.archivedAt=now;
+          }
+        });
+        const archivedRelationIds = new Set((state.exploration.collectiveRelations || []).filter(relation=>relation.status==='archivado').map(relation=>relation.id));
+        (state.exploration.emergentInterpretations || []).forEach(emergent => {
+          const directSourceArchived = (emergent.sourceParticipantRefs || []).some(touchesArchivedRecord);
+          const relationSourceArchived = (emergent.sourceRelationIds || []).some(relationId=>archivedRelationIds.has(relationId));
+          if (emergent.status!=='archivado' && (directSourceArchived || relationSourceArchived)) {
+            emergent.status='archivado'; emergent.archivedAt=now;
+          }
+        });
         return true;
       });
     }
