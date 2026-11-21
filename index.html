@@ -558,6 +558,17 @@
           <button id="btnCreateCollectiveRelation" type="button" class="w-full rounded-lg bg-amber-800 hover:bg-amber-900 text-white p-2.5 text-[10px] font-semibold">Crear relación colectiva</button>
           <div id="collectiveRelationStatus" role="status" aria-live="polite" class="text-[10px] text-stone-600"></div>
           <div class="border-t border-amber-200 pt-2 space-y-2"><h5 class="text-[10px] font-bold text-stone-700">Puentes colectivos de esta exploración</h5><div id="collectiveRelationsList" class="space-y-2"><p class="text-[10px] text-stone-500">Todavía no hay puentes colectivos.</p></div></div>
+          <section id="emergentInterpretationBuilder" class="border-t border-teal-200 pt-3 space-y-2.5" aria-labelledby="emergentInterpretationHeading">
+            <h4 id="emergentInterpretationHeading" class="text-[11px] font-bold text-teal-900">Interpretaciones que emergen</h4><p class="text-[10px] text-stone-600">Combina fuentes o puentes para registrar una lectura nueva. Tú decides qué significado aparece y qué tan provisional es.</p>
+            <div class="text-[10px] font-semibold">Fuentes directas</div><input id="emergentSourceSearch" type="search" class="w-full rounded-lg border p-2 text-xs" placeholder="Buscar hallazgos, necesidades, evidencias…" aria-label="Buscar fuentes para interpretación emergente" />
+            <div id="emergentSourceCandidates" class="max-h-40 overflow-y-auto rounded-xl border bg-white/70 p-2 space-y-1" role="group" aria-label="Fuentes directas disponibles"></div>
+            <div class="text-[10px] font-semibold">Puentes colectivos (opcional)</div><div id="emergentRelationCandidates" class="max-h-32 overflow-y-auto rounded-xl border bg-white/70 p-2 space-y-1" role="group" aria-label="Puentes colectivos disponibles"></div>
+            <label class="block text-[10px]">¿Qué significado nuevo aparece al considerar estas fuentes juntas?<textarea id="emergentInterpretationText" rows="3" maxlength="2000" class="mt-1 w-full rounded-lg border bg-white p-2 text-xs" placeholder="Al observar estas situaciones en conjunto, parece que…"></textarea></label>
+            <label class="block text-[10px]">Estado de la lectura<select id="emergentEpistemicStatus" class="mt-1 w-full rounded-lg border bg-white p-2 text-xs"><option value="inferencia">Inferencia · lectura derivada de las fuentes</option><option value="hipotesis">Hipótesis · explicación tentativa por contrastar</option></select></label>
+            <p id="emergentEpistemicHelp" class="text-[9px] text-stone-500">Una inferencia interpreta lo que sugieren las fuentes. Una hipótesis propone una explicación que todavía necesita contraste.</p>
+            <div id="emergentInterpretationStatus" role="status" aria-live="polite" class="text-[10px] text-stone-600"></div><button id="btnCreateEmergentInterpretation" type="button" class="w-full rounded-lg bg-teal-800 text-white p-2 text-[10px] font-semibold">Guardar interpretación emergente</button>
+            <div class="border-t border-teal-200 pt-2 space-y-2"><h5 class="text-[10px] font-bold">Lecturas registradas</h5><div id="emergentInterpretationsList" class="space-y-2"></div></div>
+          </section>
         </section>
         <div class="border-t border-teal-200 pt-2 space-y-2">
           <h4 class="text-[10px] font-semibold text-teal-800">Pregunta de oportunidad trazable</h4>
@@ -2549,9 +2560,14 @@
         if(record.recordType==='relacion_colectiva'){
           if(!Array.isArray(snapshot.participantRefs) || !COLLECTIVE_RELATION_TYPES.has(snapshot.relationType)) throw new Error('La versión de la relación colectiva no contiene una configuración válida.');
           validateCollectiveParticipantRefs(snapshot.participantRefs);
-          record.participantRefs=JSON.parse(JSON.stringify(snapshot.participantRefs));
-          record.relationType=snapshot.relationType;
-          record.meaning=validateRecordText(snapshot.meaning,1000);
+          record.participantRefs=JSON.parse(JSON.stringify(snapshot.participantRefs));record.relationType=snapshot.relationType;record.meaning=validateRecordText(snapshot.meaning,1000);
+        }
+        if(record.recordType==='interpretacion_emergente'){
+          if(!Array.isArray(snapshot.sourceParticipantRefs)||!Array.isArray(snapshot.sourceRelationIds)||!EMERGENT_EPISTEMIC_STATUSES.has(snapshot.epistemicStatus))throw new Error('La versión no contiene fuentes o estado válidos.');
+          validateCollectiveParticipantRefs(snapshot.sourceParticipantRefs);
+          snapshot.sourceRelationIds.forEach(id=>{if(!state.exploration.collectiveRelations.some(r=>r.id===id&&r.status!=='archivado'))throw new Error('Una relación de origen ya no está activa.');});
+          if(new Set([...snapshot.sourceParticipantRefs.map(collectiveRefKey),...snapshot.sourceRelationIds.map(id=>'relacion:'+id)]).size<2)throw new Error('La versión necesita al menos dos fuentes distintas.');
+          record.sourceParticipantRefs=JSON.parse(JSON.stringify(snapshot.sourceParticipantRefs));record.sourceRelationIds=[...snapshot.sourceRelationIds];record.epistemicStatus=snapshot.epistemicStatus;record.text=validateRecordText(snapshot.text,2000);
         }
         const nextVersion = {id:createStableId('version'), entityType:record.recordType, entityId:record.id, version:record.history.length+1, at:new Date().toISOString(), content:Object.fromEntries(Object.entries(record).filter(([k])=>k!=='history')), author:record.author || null, reason:`Restauración de contenido de versión ${versionNumber}`};
         record.history.push(nextVersion); state.exploration.versionRecords.push(nextVersion);
@@ -2563,7 +2579,7 @@
     const recordActionPanelHomeNext = document.getElementById('recordActionPanel').nextElementSibling;
     function getCollectionForRecordType(type) {
       const map = {observacion:'findings', hipotesis:'findings', pregunta:'findings', hallazgo:'findings', conexion:'bridgesMeanings', posibilidad:'possibilities',
-        evidencia:'evidences', interpretacion:'interpretations', necesidad:'needs', oportunidad:'opportunities', relacion_colectiva:'collectiveRelations'};
+        evidencia:'evidences', interpretacion:'interpretations', necesidad:'needs', oportunidad:'opportunities', relacion_colectiva:'collectiveRelations', interpretacion_emergente:'emergentInterpretations'};
       return map[type] ? state.exploration[map[type]] : null;
     }
     function recordEditableValue(record) {
@@ -2759,6 +2775,23 @@
         if(!EMERGENT_EPISTEMIC_STATUSES.has(epistemicStatus)) throw new Error('Selecciona Inferencia o Hipótesis por contrastar.');
         const text=validateRecordText(data.text);
         return createRelatedRecord('emergentInterpretations',{sourceParticipantRefs,sourceRelationIds,epistemicStatus,text,createdAt:new Date().toISOString()},'interpretacion_emergente');
+      });
+    }
+
+    function updateEmergentInterpretation(record,data){
+      return atomicRecordMutation(()=>{
+        if(!record||record.status==='archivado')throw new Error('La interpretación ya no está disponible para editar.');
+        const refs=Array.isArray(data.sourceParticipantRefs)?data.sourceParticipantRefs.map(ref=>({entityType:String(ref.entityType||''),entityId:String(ref.entityId||'')})):[];
+        const relationIds=Array.isArray(data.sourceRelationIds)?[...new Set(data.sourceRelationIds.map(String))]:[];
+        validateCollectiveParticipantRefs(refs);
+        relationIds.forEach(id=>{if(!state.exploration.collectiveRelations.some(r=>r.id===id&&r.status!=='archivado'))throw new Error('Una relación de origen no existe o está archivada.');});
+        if(new Set([...refs.map(collectiveRefKey),...relationIds.map(id=>'relacion:'+id)]).size<2)throw new Error('Selecciona al menos dos fuentes distintas.');
+        if(!EMERGENT_EPISTEMIC_STATUSES.has(data.epistemicStatus))throw new Error('Selecciona Inferencia o Hipótesis por contrastar.');
+        const textValue=validateRecordText(data.text,2000),unchanged=JSON.stringify(record.sourceParticipantRefs||[])===JSON.stringify(refs)&&JSON.stringify(record.sourceRelationIds||[])===JSON.stringify(relationIds)&&record.epistemicStatus===data.epistemicStatus&&record.text===textValue;
+        if(unchanged)return record;
+        const previous=Object.fromEntries(Object.entries(record).filter(([key])=>key!=='history'));
+        const version={id:createStableId('version'),entityType:record.recordType,entityId:record.id,version:record.history.length+1,at:new Date().toISOString(),content:previous,author:record.author||null,reason:'Edición de interpretación emergente'};
+        record.history.push(version);state.exploration.versionRecords.push(version);record.sourceParticipantRefs=refs;record.sourceRelationIds=relationIds;record.epistemicStatus=data.epistemicStatus;record.text=textValue;record.status='revisado';return record;
       });
     }
 
@@ -3291,6 +3324,37 @@
       const actions=document.createElement('div');actions.className='flex gap-2';actions.append(save,cancel);
       panel.append(intro,filter,candidateBox,category,meaning,status,actions);card.appendChild(panel);panel.scrollIntoView({block:'nearest',behavior:'smooth'});
     }
+    const emergentSelectedRefs=new Set(),emergentSelectedRelations=new Set();
+    function renderEmergentInterpretationBuilder(){
+      const catalog=collectiveParticipantCatalog(),sourceBox=document.getElementById('emergentSourceCandidates'),relationBox=document.getElementById('emergentRelationCandidates');
+      if(!sourceBox||!relationBox)return;
+      const query=(document.getElementById('emergentSourceSearch')?.value||'').trim().toLocaleLowerCase('es');sourceBox.innerHTML='';
+      const candidates=catalog.filter(item=>!query||`${item.content} ${item.territoryTitle} ${collectiveTypeLabels[item.entityType]}`.toLocaleLowerCase('es').includes(query));
+      if(!candidates.length)sourceBox.textContent='No hay fuentes activas que coincidan con la búsqueda.';
+      candidates.forEach(item=>{const key=collectiveRefKey(item),label=document.createElement('label');label.className='flex gap-2 p-1 text-[10px]';const check=document.createElement('input');check.type='checkbox';check.checked=emergentSelectedRefs.has(key);check.addEventListener('change',()=>check.checked?emergentSelectedRefs.add(key):emergentSelectedRefs.delete(key));const span=document.createElement('span');span.textContent=`${collectiveTypeLabels[item.entityType]} · ${item.territoryTitle} — ${item.content.slice(0,115)}`;label.append(check,span);sourceBox.appendChild(label);});
+      relationBox.innerHTML='';const relations=state.exploration.collectiveRelations.filter(r=>r.status!=='archivado');
+      if(!relations.length)relationBox.textContent='Todavía no hay puentes colectivos activos. Puedes trabajar con fuentes directas.';
+      relations.forEach(record=>{const label=document.createElement('label');label.className='flex gap-2 p-1 text-[10px]';const check=document.createElement('input');check.type='checkbox';check.checked=emergentSelectedRelations.has(record.id);check.addEventListener('change',()=>check.checked?emergentSelectedRelations.add(record.id):emergentSelectedRelations.delete(record.id));const span=document.createElement('span');span.textContent=`${collectiveRelationLabels[record.relationType]||'Relación'} — ${record.meaning.slice(0,120)}`;label.append(check,span);relationBox.appendChild(label);});
+      const list=document.getElementById('emergentInterpretationsList');if(!list)return;const records=state.exploration.emergentInterpretations.filter(r=>r.status!=='archivado');list.innerHTML='';
+      if(!records.length){list.textContent='Todavía no hay interpretaciones emergentes.';return;}
+      records.forEach(record=>{const card=document.createElement('article');card.className='rounded-xl border border-teal-200 bg-white/80 p-2.5 space-y-1.5';const title=document.createElement('div');title.className='text-[10px] font-bold text-teal-900';title.textContent=record.epistemicStatus==='hipotesis'?'Hipótesis · por contrastar':'Inferencia · lectura derivada';const body=document.createElement('p');body.className='text-[10px] text-stone-700';body.textContent=record.text;
+        const source=document.createElement('p');source.className='text-[9px] text-stone-500';const direct=(record.sourceParticipantRefs||[]).map(ref=>{const item=catalog.find(x=>collectiveRefKey(x)===collectiveRefKey(ref));return item?`${collectiveTypeLabels[ref.entityType]} · ${item.content.slice(0,55)}`:'Fuente histórica';});const rels=(record.sourceRelationIds||[]).map(id=>{const rel=state.exploration.collectiveRelations.find(x=>x.id===id);return rel?`Puente · ${rel.meaning.slice(0,55)}`:'Puente histórico';});source.textContent='Fuentes: '+[...direct,...rels].join(' + ');
+        const actions=document.createElement('div');actions.className='flex gap-2';const edit=document.createElement('button');edit.type='button';edit.className='text-[9px] underline';edit.textContent='Editar lectura';edit.addEventListener('click',()=>openEmergentInterpretationEditor(record,card));actions.appendChild(edit);
+        [['Historial','history'],['Archivar','archive']].forEach(([label,mode])=>{const btn=document.createElement('button');btn.type='button';btn.className='text-[9px] underline';btn.textContent=label;btn.addEventListener('click',()=>openRecordAction(record,'interpretación emergente',mode,card));actions.appendChild(btn);});card.append(title,body,source,actions);list.appendChild(card);});
+    }
+    function openEmergentInterpretationEditor(record,card){
+      card.querySelector('.emergent-inline-editor')?.remove();const panel=document.createElement('div');panel.className='emergent-inline-editor border-t pt-2 space-y-2';const refs=new Set((record.sourceParticipantRefs||[]).map(collectiveRefKey)),relations=new Set(record.sourceRelationIds||[]);
+      const directBox=document.createElement('div'),relationBox=document.createElement('div');directBox.className='max-h-36 overflow-y-auto';relationBox.className='max-h-28 overflow-y-auto';
+      const addChoices=(items,selected,box,keyOf,labelOf)=>items.forEach(item=>{const label=document.createElement('label');label.className='flex gap-2 p-1 text-[10px]';const check=document.createElement('input');check.type='checkbox';check.checked=selected.has(keyOf(item));check.addEventListener('change',()=>check.checked?selected.add(keyOf(item)):selected.delete(keyOf(item)));const span=document.createElement('span');span.textContent=labelOf(item);label.append(check,span);box.appendChild(label);});
+      addChoices(collectiveParticipantCatalog(),refs,directBox,collectiveRefKey,x=>`${collectiveTypeLabels[x.entityType]} · ${x.content.slice(0,90)}`);addChoices(state.exploration.collectiveRelations.filter(x=>x.status!=='archivado'),relations,relationBox,x=>x.id,x=>'Puente · '+x.meaning.slice(0,90));
+      const textArea=document.createElement('textarea');textArea.rows=3;textArea.maxLength=2000;textArea.className='w-full rounded-lg border p-2 text-xs';textArea.value=record.text;const epistemic=document.createElement('select');epistemic.className='w-full rounded-lg border p-2 text-xs';epistemic.innerHTML='<option value="inferencia">Inferencia</option><option value="hipotesis">Hipótesis por contrastar</option>';epistemic.value=record.epistemicStatus;
+      const status=document.createElement('p');status.setAttribute('role','status');status.className='text-[10px] text-rose-700';const save=document.createElement('button');save.type='button';save.textContent='Guardar cambios';save.className='rounded-lg bg-teal-800 text-white p-2 text-[10px]';save.addEventListener('click',()=>{try{updateEmergentInterpretation(record,{sourceParticipantRefs:collectiveParticipantCatalog().filter(x=>refs.has(collectiveRefKey(x))).map(x=>({entityType:x.entityType,entityId:x.entityId})),sourceRelationIds:[...relations],text:textArea.value,epistemicStatus:epistemic.value});updateExplorationUI();showToast('Interpretación emergente actualizada.');}catch(e){status.textContent=e.message;}});
+      const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancelar';cancel.className='border rounded-lg p-2 text-[10px]';cancel.addEventListener('click',()=>panel.remove());panel.append(document.createTextNode('Fuentes directas'),directBox,document.createTextNode('Puentes colectivos'),relationBox,textArea,epistemic,status,save,cancel);card.appendChild(panel);
+    }
+    function createEmergentInterpretationFromUI(){
+      const status=document.getElementById('emergentInterpretationStatus');try{const refs=collectiveParticipantCatalog().filter(x=>emergentSelectedRefs.has(collectiveRefKey(x))).map(x=>({entityType:x.entityType,entityId:x.entityId}));const record=createEmergentInterpretation({sourceParticipantRefs:refs,sourceRelationIds:[...emergentSelectedRelations],text:document.getElementById('emergentInterpretationText').value,epistemicStatus:document.getElementById('emergentEpistemicStatus').value});emergentSelectedRefs.clear();emergentSelectedRelations.clear();document.getElementById('emergentInterpretationText').value='';if(status)status.textContent='Interpretación guardada con sus fuentes y estado epistémico.';updateExplorationUI();showToast('Interpretación emergente registrada');}catch(e){if(status)status.textContent=e.message;showToast(e.message);}
+    }
+
     function createCollectiveRelationFromUI(){
       const selected=collectiveParticipantCatalog().filter(item=>collectiveSelectedRefs.has(collectiveRefKey(item)));
       const status=document.getElementById('collectiveRelationStatus');
@@ -3314,6 +3378,7 @@
       document.getElementById('statFindings').textContent = `${findingsCount}`;
       document.getElementById('statBridges').textContent = `${bridgesCount}`;
       renderCollectiveRelationsUI();
+      renderEmergentInterpretationBuilder();
 
       // Lista consultable de hallazgos: búsqueda, filtro y detalle diferenciado.
       const fList = document.getElementById('myFindingsList');
@@ -3777,6 +3842,9 @@
       guidance.textContent=messages[document.getElementById('collectiveRelationType').value]||'Explica la relación.';
     });
     document.getElementById('btnCreateCollectiveRelation')?.addEventListener('click',createCollectiveRelationFromUI);
+    document.getElementById('emergentSourceSearch')?.addEventListener('input',renderEmergentInterpretationBuilder);
+    document.getElementById('btnCreateEmergentInterpretation')?.addEventListener('click',createEmergentInterpretationFromUI);
+    document.getElementById('emergentEpistemicStatus')?.addEventListener('change',()=>{const help=document.getElementById('emergentEpistemicHelp');if(help)help.textContent=document.getElementById('emergentEpistemicStatus').value==='hipotesis'?'Una hipótesis propone una explicación tentativa que necesita contraste con nuevas fuentes o investigación.':'Una inferencia es una lectura derivada de las fuentes disponibles; puede revisarse al incorporar nueva información.';});
     document.getElementById('findingSearch')?.addEventListener('input', () => updateExplorationUI());
     document.getElementById('findingTypeFilter')?.addEventListener('change', () => updateExplorationUI());
 
