@@ -29,3 +29,30 @@ jobs:
         run: node tests/nodo-cero-proyectar-needs.test.js
       - name: Run collective relations UI suite
         run: node tests/nodo-cero-relaciones-colectivas-ui.test.js
+
+  browser-e2e:
+    name: Chromium E2E · collective relations
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: npm install --no-save playwright
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Serve application
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 >/tmp/nodo-cero-http.log 2>&1 &
+          echo $! >/tmp/nodo-cero-http.pid
+          for i in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/nodo-cero-http.log
+          exit 1
+      - name: Run Chromium E2E
+        run: node tests/nodo-cero-relaciones-colectivas.e2e.cjs
