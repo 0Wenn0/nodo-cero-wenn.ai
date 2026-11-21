@@ -1,0 +1,51 @@
+const { chromium } = require('playwright');
+const assert = require('node:assert/strict');
+(async()=>{
+ const browser=await chromium.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}});
+ const errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await page.goto(process.env.NODO_CERO_URL||'http://127.0.0.1:4173/',{waitUntil:'networkidle',timeout:60000});
+  await page.waitForSelector('#collectiveRelationBuilder',{timeout:20000});
+  await page.locator('#collectiveTypeFilter').selectOption('territorio');
+  const checks=page.locator('#collectiveCandidates input[type=checkbox]');
+  await checks.nth(0).check();await checks.nth(1).check();await checks.nth(2).check();
+  await page.locator('#collectiveRelationMeaning').fill('Los tres territorios permiten observar una dimensión compartida de la vida cotidiana.');
+  await page.locator('#btnCreateCollectiveRelation').click();
+  await page.getByText('Relación colectiva registrada',{exact:true}).waitFor({timeout:10000});
+  let cards=page.locator('#collectiveRelationsList article');
+  await assertCount(cards,1,'Se crea una relación colectiva con tres participantes');
+  const firstCard=cards.first();
+  await firstCard.getByRole('button',{name:'Editar relación'}).click();
+  const editor=firstCard.locator('.collective-inline-editor');
+  const editChecks=editor.locator('input[type=checkbox]');
+  await editChecks.nth(0).uncheck();
+  await editChecks.nth(3).check();
+  await editor.locator('select').selectOption('tension');
+  await editor.locator('textarea').fill('La tensión entre estos cuatro territorios revela condiciones que afectan oportunidades de manera desigual.');
+  await editor.getByRole('button',{name:'Guardar cambios'}).click();
+  await page.getByText('Relación colectiva actualizada con nueva versión.',{exact:true}).waitFor({timeout:10000});
+  cards=page.locator('#collectiveRelationsList article');
+  await assertCount(cards,1,'La edición conserva una sola relación y su ID');
+  await assert.equal(await cards.first().locator('div').first().innerText(),'Tensión');
+  await cards.first().getByRole('button',{name:'Historial'}).click();
+  const panel=page.locator('#recordActionPanel');
+  await panel.waitFor({state:'visible'});
+  await panel.getByRole('button',{name:'Restaurar esta versión'}).first().click();
+  await page.getByText('Versión 1 restaurada',{exact:true}).waitFor({timeout:10000});
+  await assert.equal(await page.locator('#collectiveRelationsList article').first().locator('div').first().innerText(),'Patrón');
+  await page.reload({waitUntil:'networkidle'});
+  await page.waitForSelector('#collectiveRelationsList article');
+  await assertCount(page.locator('#collectiveRelationsList article'),1,'La relación restaurada persiste tras recarga');
+  const finalCard=page.locator('#collectiveRelationsList article').first();
+  await finalCard.getByRole('button',{name:'Archivar'}).click();
+  const archivePanel=page.locator('#recordActionPanel');
+  await archivePanel.getByRole('button',{name:'Sí, archivar'}).click();
+  await page.getByText('Relación colectiva archivada',{exact:true}).waitFor({timeout:10000});
+  await assertCount(page.locator('#collectiveRelationsList article'),0,'El archivado retira la relación de la vista activa');
+  if(errors.length)throw new Error('Errores de JavaScript: '+errors.join(' | '));
+  console.log('E2E PASS: crear, editar participantes/categoría/significado, restaurar versión, persistir tras recarga y archivar.');
+ } finally {await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1);});
+async function assertCount(locator,expected,message){const actual=await locator.count();assert.equal(actual,expected,message);}
