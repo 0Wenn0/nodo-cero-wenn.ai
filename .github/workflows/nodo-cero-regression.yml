@@ -1,0 +1,29 @@
+name: NODO CERO · Regression tests
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    name: Structural regression suites
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run collective relations suite
+        run: node tests/nodo-cero-relaciones-colectivas.test.js
+      - name: Run cycle 1 regression suite
+        run: node tests/nodo-cero-ciclo1.test.js
+      - name: Run cycle 2 regression suite
+        run: node tests/nodo-cero-ciclo2.test.js
+      - name: Run PROYECTAR needs regression suite
+        run: node tests/nodo-cero-proyectar-needs.test.js
