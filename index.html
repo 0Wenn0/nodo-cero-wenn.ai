@@ -1283,7 +1283,7 @@
         customCommunity: '',
         customChange: '',
         customResearch: '',
-        evidences: [], interpretations: [], needs: [], opportunities: [], versionRecords: [], authorship: [], technologyDimensions: []
+        evidences: [], interpretations: [], needs: [], opportunities: [], versionRecords: [], authorship: [], technologyDimensions: [], collectiveRelations: [], emergentInterpretations: []
       }
     };
 
@@ -1423,7 +1423,7 @@
     function normalizeImportedSnapshot(raw) {
       if (!raw || raw.app !== 'NODO_CERO' || ![1].includes(raw.backupSchemaVersion) || !raw.exploration || typeof raw.exploration !== 'object') throw new Error('El archivo no corresponde a un respaldo compatible de NODO CERO.');
       const ex = raw.exploration;
-      const arrays = ['visits','findings','bridgesMeanings','possibilities','evidences','interpretations','needs','opportunities','versionRecords','authorship','technologyDimensions'];
+      const arrays = ['visits','findings','bridgesMeanings','possibilities','evidences','interpretations','needs','opportunities','versionRecords','authorship','technologyDimensions','collectiveRelations','emergentInterpretations'];
       arrays.forEach(k => { if (!Array.isArray(ex[k])) ex[k]=[]; });
       if (Array.isArray(ex.visitedIds)) ex.visitedIds = new Set(ex.visitedIds);
       else if (!(ex.visitedIds instanceof Set)) ex.visitedIds = new Set(ex.visits.filter(v=>v.status==='visitado').map(v=>v.territoryId));
@@ -1492,7 +1492,7 @@
       } catch(error) { showToast('No se pudo generar el respaldo JSON'); console.error(error); return false; }
     }
     function countExplorationRecords(exploration=state.exploration) {
-      const keys=['visits','findings','bridgesMeanings','possibilities','evidences','interpretations','needs','opportunities','versionRecords','authorship','technologyDimensions'];
+      const keys=['visits','findings','bridgesMeanings','possibilities','evidences','interpretations','needs','opportunities','versionRecords','authorship','technologyDimensions','collectiveRelations','emergentInterpretations'];
       const records=keys.reduce((n,k)=>n+(Array.isArray(exploration[k])?exploration[k].length:0),0);
       const visited=exploration.visitedIds instanceof Set ? exploration.visitedIds.size : Array.isArray(exploration.visitedIds) ? exploration.visitedIds.length : 0;
       return records+visited;
@@ -2408,7 +2408,10 @@
 
     // I2 · Capa de registros: identidad estable, validación, versiones y archivado.
     const RECORD_SCHEMA_VERSION = 3;
-    const RECORD_TYPES = new Set(['observacion','interpretacion','hipotesis','necesidad','pregunta','conexion','posibilidad','evidencia','oportunidad','autor','dimension','visita']);
+    const RECORD_TYPES = new Set(['observacion','interpretacion','hipotesis','necesidad','pregunta','conexion','posibilidad','evidencia','oportunidad','autor','dimension','visita','relacion_colectiva','interpretacion_emergente']);
+    const COLLECTIVE_RELATION_TYPES = new Set(['patron','tension','causal_hipotetica','complementaria','contradiccion','analogia','otra']);
+    const EMERGENT_EPISTEMIC_STATUSES = new Set(['inferencia','hipotesis']);
+    const COLLECTIVE_PARTICIPANT_COLLECTIONS = {hallazgo:'findings',evidencia:'evidences',interpretacion:'interpretations',necesidad:'needs',posibilidad:'possibilities',oportunidad:'opportunities'};
     const EVIDENCE_TYPES = new Set(['observacion_directa','testimonio','documento','dato','fuente_secundaria','experiencia_reportada','sin_fuente_externa']);
     const TECH_DIMENSIONS = new Set(['acceso','conectividad','dispositivos','alfabetizacion_digital','usabilidad_accesibilidad','confianza_seguridad','infraestructura','automatizacion_ia','no_aplica_por_explorar']);
     const RECORD_COLLECTIONS = ['findings','possibilities','bridgesMeanings'];
@@ -2425,7 +2428,7 @@
     }
     function atomicRecordMutation(mutator) {
       const ex = state.exploration;
-      const keys = ['visits','findings','possibilities','bridgesMeanings','evidences','interpretations','needs','opportunities','authorship','versionRecords','technologyDimensions'];
+      const keys = ['visits','findings','possibilities','bridgesMeanings','evidences','interpretations','needs','opportunities','authorship','versionRecords','technologyDimensions','collectiveRelations','emergentInterpretations'];
       const backup = Object.fromEntries(keys.map(k => [k, JSON.parse(JSON.stringify(ex[k] || []))]));
       const visitedBackup = new Set(ex.visitedIds || []);
       try {
@@ -2686,6 +2689,36 @@
         state.exploration.bridgesMeanings.push(record); return record;
       });
     }
+    function createCollectiveRelation(data) {
+      return atomicRecordMutation(() => {
+        const participantRefs=Array.isArray(data.participantRefs)?data.participantRefs.map(ref=>({entityType:String(ref.entityType||''),entityId:String(ref.entityId||'')})):[];
+        if(participantRefs.length<2) throw new Error('Una relación colectiva requiere al menos dos participantes.');
+        validateCollectiveParticipantRefs(participantRefs);
+        const relationType=String(data.relationType||'');
+        if(!COLLECTIVE_RELATION_TYPES.has(relationType)) throw new Error('Selecciona una categoría de relación válida.');
+        const meaning=validateRecordText(data.meaning,1000);
+        if(relationType==='otra' && meaning.length<12) throw new Error('Describe con más detalle la relación elegida como «Otra».');
+        const key=participantRefs.map(ref=>`${ref.entityType}:${ref.entityId}`).sort().join('|');
+        const duplicate=state.exploration.collectiveRelations.find(item=>item.status!=='archivado' && item.relationType===relationType && item.meaning===meaning && item.participantRefs.map(ref=>`${ref.entityType}:${ref.entityId}`).sort().join('|')===key);
+        if(duplicate) return duplicate;
+        return createRelatedRecord('collectiveRelations',{participantRefs,relationType,meaning,createdAt:new Date().toISOString()},'relacion_colectiva');
+      });
+    }
+    function createEmergentInterpretation(data) {
+      return atomicRecordMutation(() => {
+        const sourceParticipantRefs=Array.isArray(data.sourceParticipantRefs)?data.sourceParticipantRefs.map(ref=>({entityType:String(ref.entityType||''),entityId:String(ref.entityId||'')})):[];
+        const sourceRelationIds=Array.isArray(data.sourceRelationIds)?[...new Set(data.sourceRelationIds.map(String))]:[];
+        validateCollectiveParticipantRefs(sourceParticipantRefs);
+        sourceRelationIds.forEach(id=>{if(!state.exploration.collectiveRelations.some(r=>r.id===id && r.status!=='archivado'))throw new Error(`La relación de origen no existe o está archivada: ${id}`);});
+        const sourceKeys=new Set([...sourceParticipantRefs.map(ref=>`${ref.entityType}:${ref.entityId}`),...sourceRelationIds.map(id=>`relacion:${id}`)]);
+        if(sourceKeys.size<2) throw new Error('Una interpretación emergente requiere al menos dos fuentes distintas.');
+        const epistemicStatus=String(data.epistemicStatus||'inferencia');
+        if(!EMERGENT_EPISTEMIC_STATUSES.has(epistemicStatus)) throw new Error('Selecciona Inferencia o Hipótesis por contrastar.');
+        const text=validateRecordText(data.text);
+        return createRelatedRecord('emergentInterpretations',{sourceParticipantRefs,sourceRelationIds,epistemicStatus,text,createdAt:new Date().toISOString()},'interpretacion_emergente');
+      });
+    }
+
     function createSemanticConnection(fromType, fromId, toType, toId, meaning) {
       return atomicRecordMutation(() => {
         const allowed = {territorio:() => TERRITORIES.some(t=>t.id===fromId), hallazgo:() => state.exploration.findings.some(f=>f.id===fromId && f.status!=='archivado')};
@@ -2703,9 +2736,28 @@
       });
     }
 
+    function resolveCollectiveParticipant(ref) {
+      if (!ref || typeof ref !== 'object' || typeof ref.entityType !== 'string' || typeof ref.entityId !== 'string' || !ref.entityId) return null;
+      if (ref.entityType === 'territorio') return TERRITORIES.find(t=>t.id===ref.entityId) || null;
+      const collectionName=COLLECTIVE_PARTICIPANT_COLLECTIONS[ref.entityType];
+      return collectionName ? (state.exploration[collectionName] || []).find(record=>record.id===ref.entityId) || null : null;
+    }
+    function validateCollectiveParticipantRefs(refs, allowArchived=false) {
+      if (!Array.isArray(refs)) throw new Error('Las fuentes deben ser una lista de referencias.');
+      const keys=new Set();
+      refs.forEach(ref=>{
+        const key=`${ref?.entityType}:${ref?.entityId}`;
+        if(keys.has(key)) throw new Error('Una misma fuente no puede repetirse en la relación.');
+        keys.add(key);
+        const target=resolveCollectiveParticipant(ref);
+        if(!target) throw new Error(`Fuente inexistente o tipo no permitido: ${key}`);
+        if(target.status==='archivado' && !allowArchived) throw new Error(`La fuente ${key} está archivada.`);
+      });
+      return true;
+    }
     function validateExplorationIntegrity() {
       const ex = state.exploration;
-      const collections = [ex.visits || [], ex.findings, ex.possibilities, ex.bridgesMeanings, ex.evidences, ex.interpretations, ex.needs, ex.opportunities, ex.authorship, ex.technologyDimensions, ex.versionRecords];
+      const collections = [ex.visits || [], ex.findings, ex.possibilities, ex.bridgesMeanings, ex.evidences, ex.interpretations, ex.needs, ex.opportunities, ex.authorship, ex.technologyDimensions, ex.collectiveRelations || [], ex.emergentInterpretations || [], ex.versionRecords];
       const all = collections.flat();
       validateUniqueIds(all);
       const byId = new Map(all.map(x => [x.id, x]));
@@ -2721,6 +2773,28 @@
         if(connection.status!=='archivado' && connectionKeys.has(key)) throw new Error(`Conexión duplicada: ${connection.id}`); if(connection.status!=='archivado') connectionKeys.add(key);
       }
       for (const dimension of (ex.technologyDimensions || [])) { requireType(dimension.targetRecordId,['observacion','interpretacion','hipotesis','necesidad','pregunta','posibilidad'],'Registro de dimensión tecnológica'); if (!TECH_DIMENSIONS.has(dimension.dimension)) throw new Error('Dimensión tecnológica no permitida.'); }
+      const collectiveKeys=new Set();
+      for(const relation of (ex.collectiveRelations || [])) {
+        if(!COLLECTIVE_RELATION_TYPES.has(relation.relationType)) throw new Error(`Tipo de relación colectiva inválido: ${relation.id}`);
+        if(!Array.isArray(relation.participantRefs) || relation.participantRefs.length<2) throw new Error(`La relación colectiva requiere al menos dos participantes: ${relation.id}`);
+        validateCollectiveParticipantRefs(relation.participantRefs,relation.status==='archivado');
+        validateRecordText(relation.meaning,1000);
+        const participantKey=relation.participantRefs.map(ref=>`${ref.entityType}:${ref.entityId}`).sort().join('|');
+        const duplicateKey=`${participantKey}|${relation.relationType}|${String(relation.meaning).trim()}`;
+        if(relation.status!=='archivado' && collectiveKeys.has(duplicateKey)) throw new Error(`Relación colectiva duplicada: ${relation.id}`);
+        if(relation.status!=='archivado') collectiveKeys.add(duplicateKey);
+      }
+      for(const emergent of (ex.emergentInterpretations || [])) {
+        if(!EMERGENT_EPISTEMIC_STATUSES.has(emergent.epistemicStatus)) throw new Error(`Estado epistémico inválido: ${emergent.id}`);
+        const refs=emergent.sourceParticipantRefs || [], relationIds=emergent.sourceRelationIds || [];
+        if(!Array.isArray(refs) || !Array.isArray(relationIds)) throw new Error(`Fuentes inválidas en interpretación emergente: ${emergent.id}`);
+        validateCollectiveParticipantRefs(refs,emergent.status==='archivado');
+        if(new Set(relationIds).size!==relationIds.length) throw new Error(`Relación de origen duplicada: ${emergent.id}`);
+        relationIds.forEach(id=>{const relation=(ex.collectiveRelations || []).find(r=>r.id===id);if(!relation || (emergent.status!=='archivado' && relation.status==='archivado'))throw new Error(`Relación de origen inexistente o archivada: ${id}`);});
+        const sourceKeys=new Set([...refs.map(ref=>`${ref.entityType}:${ref.entityId}`),...relationIds.map(id=>`relacion:${id}`)]);
+        if(sourceKeys.size<2) throw new Error(`La interpretación emergente requiere al menos dos fuentes distintas: ${emergent.id}`);
+        validateRecordText(emergent.text);
+      }
       for (const finding of ex.findings) {
         for (const id of finding.evidenceIds || []) requireType(id,['evidencia'],'Evidencia');
         for (const id of finding.interpretationIds || []) requireType(id,['interpretacion'],'Interpretación');
@@ -2741,7 +2815,7 @@
         opportunity.sourceFindingIds.forEach(id => { const finding=requireType(id,['observacion','interpretacion','hipotesis','necesidad','pregunta'],'Hallazgo de oportunidad'); if (opportunity.status!=='archivado' && finding.status==='archivado') throw new Error('Una oportunidad activa no puede depender de un hallazgo archivado.'); });
         (opportunity.needIds || []).forEach(id => { const need=requireType(id,['necesidad'],'Necesidad de oportunidad'); if (!(opportunity.sourceFindingIds || []).includes(need.hallazgoId)) throw new Error('La necesidad de oportunidad no corresponde a uno de sus hallazgos de origen.'); if (opportunity.status!=='archivado' && need.status==='archivado') throw new Error('Una oportunidad activa no puede depender de una necesidad archivada.'); });
       }
-      for (const record of [...ex.findings,...ex.possibilities,...ex.bridgesMeanings,...ex.evidences,...ex.interpretations,...ex.needs,...ex.opportunities,...ex.authorship,...ex.technologyDimensions]) {
+      for (const record of [...ex.findings,...ex.possibilities,...ex.bridgesMeanings,...ex.evidences,...ex.interpretations,...ex.needs,...ex.opportunities,...ex.authorship,...ex.technologyDimensions,...(ex.collectiveRelations || []),...(ex.emergentInterpretations || [])]) {
         if (record.authorId) requireType(record.authorId,['autor'],'Autoría');
         if (!Array.isArray(record.history)) throw new Error(`Historial inválido en ${record.id}`);
         if ((record.technologyDimensions || []).some(d=>!TECH_DIMENSIONS.has(d))) throw new Error(`Dimensión tecnológica inválida en ${record.id}`);
@@ -2793,8 +2867,10 @@
       ex.versionRecords = Array.isArray(ex.versionRecords) ? ex.versionRecords : [];
       ex.authorship = Array.isArray(ex.authorship) ? ex.authorship : [];
       ex.technologyDimensions = Array.isArray(ex.technologyDimensions) ? ex.technologyDimensions : [];
+      ex.collectiveRelations = Array.isArray(ex.collectiveRelations) ? ex.collectiveRelations.map(item=>ensureRecordShape(item,'relacion_colectiva')) : [];
+      ex.emergentInterpretations = Array.isArray(ex.emergentInterpretations) ? ex.emergentInterpretations.map(item=>ensureRecordShape(item,'interpretacion_emergente')) : [];
       [...ex.findings,...ex.possibilities,...ex.bridgesMeanings].forEach(record=>{(record.technologyDimensions||[]).forEach(dimension=>{if(TECH_DIMENSIONS.has(dimension)&&!ex.technologyDimensions.some(x=>x.targetRecordId===record.id&&x.dimension===dimension)){ex.technologyDimensions.push(ensureRecordShape({id:createStableId('dimension'),targetRecordId:record.id,dimension,status:'documentado'},'dimension'));}});});
-      [...ex.findings, ...ex.possibilities, ...ex.bridgesMeanings, ...ex.evidences, ...ex.interpretations, ...ex.needs, ...ex.opportunities].forEach(record => {
+      [...ex.findings, ...ex.possibilities, ...ex.bridgesMeanings, ...ex.evidences, ...ex.interpretations, ...ex.needs, ...ex.opportunities, ...ex.collectiveRelations, ...ex.emergentInterpretations].forEach(record => {
         record.history.forEach(v => { if (!v.id) v.id = createStableId('version'); v.entityId = record.id; v.entityType = record.recordType; });
         ex.versionRecords.push(...record.history.filter(v => !ex.versionRecords.some(old => old.id === v.id)));
       });
@@ -2805,7 +2881,7 @@
       });
       ex.visitedIds = new Set(ex.visits.filter(v=>v.status==='visitado').map(v=>v.territoryId));
       ex.schemaVersion = RECORD_SCHEMA_VERSION;
-      ex.migrationReport = {from:'legacy-in-memory', to:RECORD_SCHEMA_VERSION, migratedAt:new Date().toISOString(), preservedRecords:ex.findings.length+ex.possibilities.length+ex.bridgesMeanings.length, initializedCollections:['visits','evidences','interpretations','needs','opportunities','versionRecords','authorship','technologyDimensions'], normalizedLegacyNeeds:ex.needs.filter(n=>n.migratedFromLegacy).length};
+      ex.migrationReport = {from:'legacy-in-memory', to:RECORD_SCHEMA_VERSION, migratedAt:new Date().toISOString(), preservedRecords:ex.findings.length+ex.possibilities.length+ex.bridgesMeanings.length, initializedCollections:['visits','evidences','interpretations','needs','opportunities','versionRecords','authorship','technologyDimensions','collectiveRelations','emergentInterpretations'], normalizedLegacyNeeds:ex.needs.filter(n=>n.migratedFromLegacy).length};
       validateExplorationIntegrity();
     }
 
