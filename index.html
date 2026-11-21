@@ -2459,7 +2459,7 @@
     const RECORD_TYPES = new Set(['observacion','interpretacion','hipotesis','necesidad','pregunta','conexion','posibilidad','evidencia','oportunidad','autor','dimension','visita','relacion_colectiva','interpretacion_emergente']);
     const COLLECTIVE_RELATION_TYPES = new Set(['patron','tension','causal_hipotetica','complementaria','contradiccion','analogia','otra']);
     const EMERGENT_EPISTEMIC_STATUSES = new Set(['inferencia','hipotesis']);
-    const COLLECTIVE_PARTICIPANT_COLLECTIONS = {hallazgo:'findings',evidencia:'evidences',interpretacion:'interpretations',necesidad:'needs',posibilidad:'possibilities',oportunidad:'opportunities'};
+    const COLLECTIVE_PARTICIPANT_COLLECTIONS = {hallazgo:'findings',evidencia:'evidences',interpretacion:'interpretations',interpretacion_emergente:'emergentInterpretations',necesidad:'needs',posibilidad:'possibilities',oportunidad:'opportunities'};
     const EVIDENCE_TYPES = new Set(['observacion_directa','testimonio','documento','dato','fuente_secundaria','experiencia_reportada','sin_fuente_externa']);
     const TECH_DIMENSIONS = new Set(['acceso','conectividad','dispositivos','alfabetizacion_digital','usabilidad_accesibilidad','confianza_seguridad','infraestructura','automatizacion_ia','no_aplica_por_explorar']);
     const RECORD_COLLECTIONS = ['findings','possibilities','bridgesMeanings'];
@@ -2767,7 +2767,7 @@
       return atomicRecordMutation(() => {
         const sourceParticipantRefs=Array.isArray(data.sourceParticipantRefs)?data.sourceParticipantRefs.map(ref=>({entityType:String(ref.entityType||''),entityId:String(ref.entityId||'')})):[];
         const sourceRelationIds=Array.isArray(data.sourceRelationIds)?[...new Set(data.sourceRelationIds.map(String))]:[];
-        validateCollectiveParticipantRefs(sourceParticipantRefs);
+        validateEmergentSourceRefs(sourceParticipantRefs);
         sourceRelationIds.forEach(id=>{if(!state.exploration.collectiveRelations.some(r=>r.id===id && r.status!=='archivado'))throw new Error(`La relación de origen no existe o está archivada: ${id}`);});
         const sourceKeys=new Set([...sourceParticipantRefs.map(ref=>`${ref.entityType}:${ref.entityId}`),...sourceRelationIds.map(id=>`relacion:${id}`)]);
         if(sourceKeys.size<2) throw new Error('Una interpretación emergente requiere al menos dos fuentes distintas.');
@@ -2783,7 +2783,7 @@
         if(!record||record.status==='archivado')throw new Error('La interpretación ya no está disponible para editar.');
         const refs=Array.isArray(data.sourceParticipantRefs)?data.sourceParticipantRefs.map(ref=>({entityType:String(ref.entityType||''),entityId:String(ref.entityId||'')})):[];
         const relationIds=Array.isArray(data.sourceRelationIds)?[...new Set(data.sourceRelationIds.map(String))]:[];
-        validateCollectiveParticipantRefs(refs);
+        validateEmergentSourceRefs(refs,record.id);
         relationIds.forEach(id=>{if(!state.exploration.collectiveRelations.some(r=>r.id===id&&r.status!=='archivado'))throw new Error('Una relación de origen no existe o está archivada.');});
         if(new Set([...refs.map(collectiveRefKey),...relationIds.map(id=>'relacion:'+id)]).size<2)throw new Error('Selecciona al menos dos fuentes distintas.');
         if(!EMERGENT_EPISTEMIC_STATUSES.has(data.epistemicStatus))throw new Error('Selecciona Inferencia o Hipótesis por contrastar.');
@@ -2831,6 +2831,21 @@
       });
       return true;
     }
+    function validateEmergentSourceRefs(refs,currentId=null,allowArchived=false){
+      validateCollectiveParticipantRefs(refs,allowArchived);
+      const emergentIds=new Set((state.exploration.emergentInterpretations||[]).map(item=>item.id));
+      const reaches=(startId,targetId,visited=new Set())=>{
+        if(startId===targetId)return true;
+        if(visited.has(startId))return false;
+        visited.add(startId);
+        const node=(state.exploration.emergentInterpretations||[]).find(item=>item.id===startId);
+        return (node?.sourceParticipantRefs||[]).some(ref=>ref.entityType==='interpretacion_emergente'&&emergentIds.has(ref.entityId)&&reaches(ref.entityId,targetId,visited));
+      };
+      refs.filter(ref=>ref.entityType==='interpretacion_emergente').forEach(ref=>{
+        if(currentId&&reaches(ref.entityId,currentId))throw new Error('Esta fuente produciría un ciclo entre interpretaciones. Elige una interpretación anterior que no dependa de esta.');
+      });
+      return true;
+    }
     function validateExplorationIntegrity() {
       const ex = state.exploration;
       const collections = [ex.visits || [], ex.findings, ex.possibilities, ex.bridgesMeanings, ex.evidences, ex.interpretations, ex.needs, ex.opportunities, ex.authorship, ex.technologyDimensions, ex.collectiveRelations || [], ex.emergentInterpretations || [], ex.versionRecords];
@@ -2864,13 +2879,17 @@
         if(!EMERGENT_EPISTEMIC_STATUSES.has(emergent.epistemicStatus)) throw new Error(`Estado epistémico inválido: ${emergent.id}`);
         const refs=emergent.sourceParticipantRefs || [], relationIds=emergent.sourceRelationIds || [];
         if(!Array.isArray(refs) || !Array.isArray(relationIds)) throw new Error(`Fuentes inválidas en interpretación emergente: ${emergent.id}`);
-        validateCollectiveParticipantRefs(refs,emergent.status==='archivado');
+        validateEmergentSourceRefs(refs,emergent.id,emergent.status==='archivado');
         if(new Set(relationIds).size!==relationIds.length) throw new Error(`Relación de origen duplicada: ${emergent.id}`);
         relationIds.forEach(id=>{const relation=(ex.collectiveRelations || []).find(r=>r.id===id);if(!relation || (emergent.status!=='archivado' && relation.status==='archivado'))throw new Error(`Relación de origen inexistente o archivada: ${id}`);});
         const sourceKeys=new Set([...refs.map(ref=>`${ref.entityType}:${ref.entityId}`),...relationIds.map(id=>`relacion:${id}`)]);
         if(sourceKeys.size<2) throw new Error(`La interpretación emergente requiere al menos dos fuentes distintas: ${emergent.id}`);
         validateRecordText(emergent.text);
       }
+      // La cadena de interpretaciones debe ser acíclica: una lectura posterior puede citar una anterior, nunca depender de sí misma.
+      const emergentVisit=new Set(),emergentStack=new Set();
+      const visitEmergent=id=>{if(emergentStack.has(id))throw new Error('Se detectó un ciclo entre interpretaciones emergentes.');if(emergentVisit.has(id))return;emergentVisit.add(id);emergentStack.add(id);const node=(ex.emergentInterpretations||[]).find(item=>item.id===id);(node?.sourceParticipantRefs||[]).filter(ref=>ref.entityType==='interpretacion_emergente').forEach(ref=>visitEmergent(ref.entityId));emergentStack.delete(id);};
+      (ex.emergentInterpretations||[]).forEach(item=>visitEmergent(item.id));
       for (const finding of ex.findings) {
         for (const id of finding.evidenceIds || []) requireType(id,['evidencia'],'Evidencia');
         for (const id of finding.interpretationIds || []) requireType(id,['interpretacion'],'Interpretación');
@@ -3199,7 +3218,7 @@
 
     // B · Constructor y consulta de relaciones colectivas.
     let collectiveSelectedRefs = new Set();
-    const collectiveTypeLabels = {hallazgo:'Hallazgo',evidencia:'Evidencia',interpretacion:'Interpretación',necesidad:'Necesidad',posibilidad:'Posibilidad',oportunidad:'Oportunidad',territorio:'Territorio'};
+    const collectiveTypeLabels = {hallazgo:'Hallazgo',evidencia:'Evidencia',interpretacion:'Interpretación',interpretacion_emergente:'Interpretación emergente',necesidad:'Necesidad',posibilidad:'Posibilidad',oportunidad:'Oportunidad',territorio:'Territorio'};
     const collectiveRelationLabels = {patron:'Patrón',tension:'Tensión',causal_hipotetica:'Relación causal hipotética',complementaria:'Complementariedad',contradiccion:'Contradicción',analogia:'Analogía',otra:'Otra relación'};
     function collectiveParticipantCatalog() {
       const ex=state.exploration, rows=[];
@@ -3211,6 +3230,7 @@
       add('hallazgo',ex.findings,r=>r.territoryId,r=>r.text);
       add('evidencia',ex.evidences,r=>ex.findings.find(f=>f.id===r.hallazgoId)?.territoryId,r=>r.descripcion);
       add('interpretacion',ex.interpretations,r=>ex.findings.find(f=>f.id===r.hallazgoId)?.territoryId,r=>r.text);
+      add('interpretacion_emergente',ex.emergentInterpretations,r=>{const source=(r.sourceParticipantRefs||[]).find(ref=>ref.entityType==='territorio');return source?.entityId||'';},r=>`${r.epistemicStatus==='hipotesis'?'Hipótesis':'Inferencia'}: ${r.text}`);
       add('necesidad',ex.needs,r=>ex.findings.find(f=>f.id===r.hallazgoId)?.territoryId,r=>r.text);
       add('posibilidad',ex.possibilities,r=>r.territoryId || r.territoryIds?.[0],r=>r.text);
       add('oportunidad',ex.opportunities,r=>ex.findings.find(f=>f.id===(r.sourceFindingIds||[])[0])?.territoryId,r=>r.text);
@@ -3346,7 +3366,7 @@
       card.querySelector('.emergent-inline-editor')?.remove();const panel=document.createElement('div');panel.className='emergent-inline-editor border-t pt-2 space-y-2';const refs=new Set((record.sourceParticipantRefs||[]).map(collectiveRefKey)),relations=new Set(record.sourceRelationIds||[]);
       const directBox=document.createElement('div'),relationBox=document.createElement('div');directBox.className='max-h-36 overflow-y-auto';relationBox.className='max-h-28 overflow-y-auto';
       const addChoices=(items,selected,box,keyOf,labelOf)=>items.forEach(item=>{const label=document.createElement('label');label.className='flex gap-2 p-1 text-[10px]';const check=document.createElement('input');check.type='checkbox';check.checked=selected.has(keyOf(item));check.addEventListener('change',()=>check.checked?selected.add(keyOf(item)):selected.delete(keyOf(item)));const span=document.createElement('span');span.textContent=labelOf(item);label.append(check,span);box.appendChild(label);});
-      addChoices(collectiveParticipantCatalog(),refs,directBox,collectiveRefKey,x=>`${collectiveTypeLabels[x.entityType]} · ${x.content.slice(0,90)}`);addChoices(state.exploration.collectiveRelations.filter(x=>x.status!=='archivado'),relations,relationBox,x=>x.id,x=>'Puente · '+x.meaning.slice(0,90));
+      addChoices(collectiveParticipantCatalog().filter(x=>!(x.entityType==='interpretacion_emergente'&&x.entityId===record.id)),refs,directBox,collectiveRefKey,x=>`${collectiveTypeLabels[x.entityType]} · ${x.content.slice(0,90)}`);addChoices(state.exploration.collectiveRelations.filter(x=>x.status!=='archivado'),relations,relationBox,x=>x.id,x=>'Puente · '+x.meaning.slice(0,90));
       const textArea=document.createElement('textarea');textArea.rows=3;textArea.maxLength=2000;textArea.className='w-full rounded-lg border p-2 text-xs';textArea.value=record.text;const epistemic=document.createElement('select');epistemic.className='w-full rounded-lg border p-2 text-xs';epistemic.innerHTML='<option value="inferencia">Inferencia</option><option value="hipotesis">Hipótesis por contrastar</option>';epistemic.value=record.epistemicStatus;
       const status=document.createElement('p');status.setAttribute('role','status');status.className='text-[10px] text-rose-700';const save=document.createElement('button');save.type='button';save.textContent='Guardar cambios';save.className='rounded-lg bg-teal-800 text-white p-2 text-[10px]';save.addEventListener('click',()=>{try{updateEmergentInterpretation(record,{sourceParticipantRefs:collectiveParticipantCatalog().filter(x=>refs.has(collectiveRefKey(x))).map(x=>({entityType:x.entityType,entityId:x.entityId})),sourceRelationIds:[...relations],text:textArea.value,epistemicStatus:epistemic.value});updateExplorationUI();showToast('Interpretación emergente actualizada.');}catch(e){status.textContent=e.message;}});
       const cancel=document.createElement('button');cancel.type='button';cancel.textContent='Cancelar';cancel.className='border rounded-lg p-2 text-[10px]';cancel.addEventListener('click',()=>panel.remove());panel.append(document.createTextNode('Fuentes directas'),directBox,document.createTextNode('Puentes colectivos'),relationBox,textArea,epistemic,status,save,cancel);card.appendChild(panel);
