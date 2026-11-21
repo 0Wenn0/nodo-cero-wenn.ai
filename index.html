@@ -2542,11 +2542,17 @@
         const version = getRecordHistory(record).find(v => v.version === versionNumber);
         if (!version) throw new Error('La versión solicitada no existe.');
         const snapshot = version.content || {};
-        // La restauración recupera el contenido, pero conserva identidad,
-        // metadatos actuales y relaciones añadidas después de la versión elegida.
+        // La restauración recupera contenido y estructura relacional sin cambiar identidad.
         ['text','descripcion','meaning'].forEach(key => {
           if (Object.prototype.hasOwnProperty.call(snapshot,key)) record[key] = JSON.parse(JSON.stringify(snapshot[key]));
         });
+        if(record.recordType==='relacion_colectiva'){
+          if(!Array.isArray(snapshot.participantRefs) || !COLLECTIVE_RELATION_TYPES.has(snapshot.relationType)) throw new Error('La versión de la relación colectiva no contiene una configuración válida.');
+          validateCollectiveParticipantRefs(snapshot.participantRefs);
+          record.participantRefs=JSON.parse(JSON.stringify(snapshot.participantRefs));
+          record.relationType=snapshot.relationType;
+          record.meaning=validateRecordText(snapshot.meaning,1000);
+        }
         const nextVersion = {id:createStableId('version'), entityType:record.recordType, entityId:record.id, version:record.history.length+1, at:new Date().toISOString(), content:Object.fromEntries(Object.entries(record).filter(([k])=>k!=='history')), author:record.author || null, reason:`Restauración de contenido de versión ${versionNumber}`};
         record.history.push(nextVersion); state.exploration.versionRecords.push(nextVersion);
         return record;
@@ -3223,9 +3229,67 @@
         const refs=document.createElement('div');refs.className='text-[9px] text-stone-500';
         refs.textContent=(record.participantRefs||[]).map(ref=>{const item=collectiveParticipantCatalog().find(x=>x.entityType===ref.entityType&&x.entityId===ref.entityId);return item?`${collectiveTypeLabels[ref.entityType]} · ${item.content.slice(0,52)}`:`${ref.entityType} · referencia histórica`;}).join('  +  ');
         const actions=document.createElement('div');actions.className='flex flex-wrap gap-2';
-        [['Editar explicación','edit'],['Historial','history'],['Archivar','archive']].forEach(([label,mode])=>{const btn=document.createElement('button');btn.type='button';btn.className='text-[9px] font-semibold underline text-stone-600';btn.textContent=label;btn.addEventListener('click',()=>openRecordAction(record,'relación colectiva',mode,card));actions.appendChild(btn);});
+        const edit=document.createElement('button');edit.type='button';edit.className='text-[9px] font-semibold underline text-stone-600';edit.textContent='Editar relación';edit.addEventListener('click',()=>openCollectiveRelationEditor(record,card));actions.appendChild(edit);
+        [['Historial','history'],['Archivar','archive']].forEach(([label,mode])=>{const btn=document.createElement('button');btn.type='button';btn.className='text-[9px] font-semibold underline text-stone-600';btn.textContent=label;btn.addEventListener('click',()=>openRecordAction(record,'relación colectiva',mode,card));actions.appendChild(btn);});
         card.append(title,meaning,refs,actions);list.appendChild(card);
       });
+    }
+    function updateCollectiveRelation(record,data){
+      return atomicRecordMutation(()=>{
+        if(!record || record.status==='archivado')throw new Error('La relación colectiva ya no está disponible para editar.');
+        const refs=Array.isArray(data.participantRefs)?data.participantRefs.map(ref=>({entityType:String(ref.entityType||''),entityId:String(ref.entityId||'')})):[];
+        if(refs.length<3)throw new Error('Conserva al menos tres participantes en el puente colectivo.');
+        validateCollectiveParticipantRefs(refs);
+        if(!COLLECTIVE_RELATION_TYPES.has(data.relationType))throw new Error('Selecciona una categoría válida.');
+        const meaning=validateRecordText(data.meaning,1000);
+        if(data.relationType==='otra' && meaning.length<12)throw new Error('Describe con más detalle la relación elegida como «Otra».');
+        const key=refs.map(ref=>`${ref.entityType}:${ref.entityId}`).sort().join('|');
+        const duplicate=state.exploration.collectiveRelations.find(item=>item.id!==record.id&&item.status!=='archivado'&&item.relationType===data.relationType&&item.meaning===meaning&&item.participantRefs.map(ref=>`${ref.entityType}:${ref.entityId}`).sort().join('|')===key);
+        if(duplicate)throw new Error('Ya existe una relación activa idéntica con esos participantes.');
+        const unchanged=record.relationType===data.relationType&&record.meaning===meaning&&JSON.stringify(record.participantRefs)===JSON.stringify(refs);
+        if(unchanged)return record;
+        const previous=Object.fromEntries(Object.entries(record).filter(([key])=>key!=='history'));
+        const version={id:createStableId('version'),entityType:record.recordType,entityId:record.id,version:record.history.length+1,at:new Date().toISOString(),content:previous,author:record.author||null,reason:'Edición de relación colectiva'};
+        record.history.push(version);state.exploration.versionRecords.push(version);
+        record.participantRefs=refs;record.relationType=data.relationType;record.meaning=meaning;record.status='revisado';
+        return record;
+      });
+    }
+    function openCollectiveRelationEditor(record,card){
+      const existing=card.querySelector('.collective-inline-editor');existing?.remove();
+      const panel=document.createElement('div');panel.className='collective-inline-editor mt-2 border-t border-amber-200 pt-2 space-y-2';
+      const intro=document.createElement('p');intro.className='text-[9px] text-stone-600';intro.textContent='Actualiza participantes, categoría y explicación. El ID se conserva y se registra una versión anterior.';
+      const filter=document.createElement('input');filter.type='search';filter.className='w-full rounded-lg border border-stone-200 bg-white p-2 text-xs';filter.placeholder='Buscar participantes…';filter.setAttribute('aria-label','Buscar participantes para editar el puente');
+      const candidateBox=document.createElement('div');candidateBox.className='max-h-44 overflow-y-auto custom-scroll border border-stone-200 rounded-lg p-2 space-y-1';
+      const selected=new Set((record.participantRefs||[]).map(collectiveRefKey));
+      const category=document.createElement('select');category.className='w-full rounded-lg border border-stone-200 bg-white p-2 text-xs';category.setAttribute('aria-label','Categoría de la relación');
+      Object.entries(collectiveRelationLabels).forEach(([value,label])=>{const o=document.createElement('option');o.value=value;o.textContent=label;category.appendChild(o);});category.value=record.relationType;
+      const meaning=document.createElement('textarea');meaning.rows=3;meaning.maxLength=1000;meaning.className='w-full rounded-lg border border-stone-200 bg-white p-2 text-xs';meaning.value=record.meaning;meaning.setAttribute('aria-label','Explicación de la relación');
+      const status=document.createElement('p');status.className='text-[10px] text-rose-700';status.setAttribute('role','status');status.setAttribute('aria-live','polite');
+      const render=()=>{
+        candidateBox.innerHTML='';
+        const query=filter.value.trim().toLocaleLowerCase('es');
+        const catalog=collectiveParticipantCatalog().filter(item=>!query||`${item.content} ${item.territoryTitle} ${collectiveTypeLabels[item.entityType]}`.toLocaleLowerCase('es').includes(query));
+        catalog.forEach(item=>{
+          const key=collectiveRefKey(item),label=document.createElement('label');label.className='flex items-start gap-2 rounded p-1 hover:bg-amber-50';
+          const check=document.createElement('input');check.type='checkbox';check.checked=selected.has(key);check.className='mt-0.5 accent-amber-800';
+          check.addEventListener('change',()=>{if(check.checked)selected.add(key);else selected.delete(key);status.textContent=`${selected.size} participantes seleccionados.`;});
+          const text=document.createElement('span');text.className='text-[10px]';text.textContent=`${collectiveTypeLabels[item.entityType]} · ${item.territoryTitle} — ${item.content.slice(0,130)}`;
+          label.append(check,text);candidateBox.appendChild(label);
+        });
+      };
+      filter.addEventListener('input',render);render();
+      const save=document.createElement('button');save.type='button';save.className='rounded-lg bg-amber-800 text-white px-3 py-2 text-[10px] font-semibold';save.textContent='Guardar cambios';
+      save.addEventListener('click',()=>{
+        try{
+          const refs=collectiveParticipantCatalog().filter(item=>selected.has(collectiveRefKey(item))).map(item=>({entityType:item.entityType,entityId:item.entityId}));
+          updateCollectiveRelation(record,{participantRefs:refs,relationType:category.value,meaning:meaning.value});
+          updateExplorationUI();showToast('Relación colectiva actualizada con nueva versión.');
+        }catch(err){status.textContent=err.message;}
+      });
+      const cancel=document.createElement('button');cancel.type='button';cancel.className='rounded-lg border border-stone-300 bg-white px-3 py-2 text-[10px]';cancel.textContent='Cancelar';cancel.addEventListener('click',()=>panel.remove());
+      const actions=document.createElement('div');actions.className='flex gap-2';actions.append(save,cancel);
+      panel.append(intro,filter,candidateBox,category,meaning,status,actions);card.appendChild(panel);panel.scrollIntoView({block:'nearest',behavior:'smooth'});
     }
     function createCollectiveRelationFromUI(){
       const selected=collectiveParticipantCatalog().filter(item=>collectiveSelectedRefs.has(collectiveRefKey(item)));
