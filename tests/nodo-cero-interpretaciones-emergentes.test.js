@@ -24,4 +24,7 @@ check('Las interpretaciones emergentes pueden ser fuentes tipadas',()=>assert.ok
 check('La creación y edición bloquean dependencias circulares',()=>assert.ok(js.includes('function validateEmergentSourceRefs')&&js.includes('reaches(ref.entityId,currentId)')));
 check('La integridad global detecta ciclos importados',()=>assert.ok(js.includes('const emergentVisit=new Set(),emergentStack=new Set()')&&js.includes('Se detectó un ciclo entre interpretaciones emergentes.')));
 check('El editor impide autorreferencia directa',()=>assert.ok(js.includes("x.entityType==='interpretacion_emergente'&&x.entityId===record.id")));
+check('La ficha Markdown incluye relaciones colectivas y linaje emergente',()=>assert.ok(js.includes("'## 5. Relaciones colectivas'")&&js.includes("'## 6. Interpretaciones emergentes'")&&js.includes('Cadena de interpretaciones')));
+check('El PNG incorpora una capa visual de la red de conocimiento',()=>assert.ok(js.includes('function buildKnowledgeGraphPNG')&&js.includes('RELACIÓN COLECTIVA')&&js.includes('INTERPRETACIÓN')));
+check('El respaldo JSON conserva ambas colecciones completas',()=>assert.ok(js.includes("'collectiveRelations','emergentInterpretations'")&&js.includes('function buildPersistenceSnapshot')));
 const fails=checks.filter(x=>x.result==='FAIL');console.log(checks.map(x=>x.result+' '+x.name+(x.error?' — '+x.error:'')).join('\n'));console.log('\n'+(checks.length-fails.length)+'/'+checks.length+' PASS');if(fails.length)process.exit(1);
